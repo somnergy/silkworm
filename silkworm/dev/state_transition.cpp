@@ -74,7 +74,7 @@ bool StateTransition::contains_env(const std::string& key) {
 std::vector<ExpectedState> StateTransition::get_expected_states() {
     std::vector<ExpectedState> expected_states;
     auto post_items = test_data_.at("post").items();
-    std::cout << "get_expected_states:test_data" << post_items;
+    // std::cout << "get_expected_states:test_data" << post_items;
     for (const auto& post_state : post_items) {
         // std::cout << "get_expected_states: test_data_.at(\"post\").items(i)" << post_state << "\n";
         auto data = post_state.value();
@@ -231,42 +231,46 @@ Transaction StateTransition::get_transaction(const ExpectedSubState& expected_su
 void StateTransition::validate_transition(const Receipt& receipt, const ExpectedState& expected_state, const ExpectedSubState& expected_sub_state, const InMemoryState& state) {
     if (expected_sub_state.exceptionExpected) {
         if (receipt.success) {
-            print_error_message(expected_state, expected_sub_state, "Failed: Exception expected");
+            // print_error_message(expected_state, expected_sub_state, "Failed: Exception expected");
             ++failed_count_;
         }
     }
 
+    if (expected_state.fork_name().length() == 0) {
+
+    }
+
     if (state.state_root_hash() != expected_sub_state.stateHash) {
-        print_error_message(expected_state, expected_sub_state, "Failed: State root hash does not match");
+        // print_error_message(expected_state, expected_sub_state, "Failed: State root hash does not match");
         ++failed_count_;
     } else {
         Bytes encoded;
         rlp::encode(encoded, receipt.logs);
         if (std::bit_cast<evmc_bytes32>(keccak256(encoded)) != expected_sub_state.logsHash) {
-            print_error_message(expected_state, expected_sub_state, "Failed: Logs hash does not match");
+            // print_error_message(expected_state, expected_sub_state, "Failed: Logs hash does not match");
             ++failed_count_;
         } else {
-            print_diagnostic_message(expected_state, expected_sub_state, "OK");
+            // print_diagnostic_message(expected_state, expected_sub_state, "OK");
         }
     }
 }
 
-void StateTransition::print_error_message(const ExpectedState& expected_state, const ExpectedSubState& expected_sub_state, const std::string& message) {
-    if (terminate_on_error_) {
-        throw std::runtime_error(message);
-    }
-    print_message(expected_state, expected_sub_state, message);
-}
+// void StateTransition::print_error_message(const ExpectedState& expected_state, const ExpectedSubState& expected_sub_state, const std::string& message) {
+//     if (terminate_on_error_) {
+//         throw std::runtime_error(message);
+//     }
+//     // print_message(expected_state, expected_sub_state, message);
+// }
 
-void StateTransition::print_diagnostic_message(const ExpectedState& expected_state, const ExpectedSubState& expected_sub_state, const std::string& message) {
-    if (show_diagnostics_) {
-        print_message(expected_state, expected_sub_state, message);
-    }
-}
+// void StateTransition::print_diagnostic_message(const ExpectedState& expected_state, const ExpectedSubState& expected_sub_state, const std::string& message) {
+//     if (show_diagnostics_) {
+//         print_message(expected_state, expected_sub_state, message);
+//     }
+// }
 
-void StateTransition::print_message(const ExpectedState& expected_state, const ExpectedSubState& expected_sub_state, const std::string& message) {
-    std::cout << "[" << test_name_ << ":" << expected_state.fork_name() << ":" << expected_sub_state.index << "] " << message << std::endl;
-}
+// void StateTransition::print_message(const ExpectedState& expected_state, const ExpectedSubState& expected_sub_state, const std::string& message) {
+//     // std::cout << "[" << test_name_ << ":" << expected_state.fork_name() << ":" << expected_sub_state.index << "] " << message << std::endl;
+// }
 
 /*
  * This function is used to clean up the state after a failed block execution.
@@ -285,6 +289,10 @@ void cleanup_error_block(Block& block, ExecutionProcessor& processor, const evmc
 void StateTransition::run() {
     failed_count_ = 0;
     total_count_ = 0;
+    if (test_name_.length() == 0) {
+
+    }
+    // std::cout << show_diagnostics_;
     // get_expected_states();
     for (auto expected_state : get_expected_states()) {
     //     // if (expected_state.fork_name() == expected_state.fork_name()) {
@@ -293,7 +301,7 @@ void StateTransition::run() {
     //     // if (expected_state == nullptr) {
     //     //     continue;
     //     // }
-        std::cout << "Expected State:" << expected_state.fork_name() << "\n";
+        // std::cout << "Expected State:" << expected_state.fork_name() << "\n";
     //     // for (const auto& expected_sub_state : expected_state.get_sub_states()) {
     //     //     ++total_count_;
     //     //     auto config = expected_state.get_config();
@@ -327,11 +335,11 @@ void StateTransition::run() {
     //     // }
     }
 
-    // if (show_diagnostics_) {
+    if (show_diagnostics_) {
     //     std::cout << "[" << test_name_ << "] "
     //               << "Finished total " << total_count_ << ", failed " << failed_count_ << std::endl
     //               << std::endl;
-    // }
+    }
 }
 
 void sample_run() {

@@ -25,9 +25,9 @@ class StateTransition {
     bool terminate_on_error_{false};
     bool show_diagnostics_{false};
 
-    void print_message(const ExpectedState& expected_state, const ExpectedSubState& expected_sub_state, const std::string& message);
-    void print_error_message(const ExpectedState& expected_state, const ExpectedSubState& expected_sub_state, const std::string& message);
-    void print_diagnostic_message(const ExpectedState& expected_state, const ExpectedSubState& expected_sub_state, const std::string& message);
+    // void print_message(const ExpectedState& expected_state, const ExpectedSubState& expected_sub_state, const std::string& message);
+    // void print_error_message(const ExpectedState& expected_state, const ExpectedSubState& expected_sub_state, const std::string& message);
+    // void print_diagnostic_message(const ExpectedState& expected_state, const ExpectedSubState& expected_sub_state, const std::string& message);
 
   public:
     explicit StateTransition(const std::string& file_path) noexcept;
