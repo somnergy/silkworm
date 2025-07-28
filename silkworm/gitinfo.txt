@@ -1,3 +1,0 @@
-75fc66b9949818ff0be28c4534302134953be357-dirty
-master
-https://github.com/somnathb1/silkworm.git
