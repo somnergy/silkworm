@@ -43,7 +43,7 @@ class StateTransition {
     // static std::unique_ptr<evmc::address> private_key_to_address(const std::string& private_key);
     // Transaction get_transaction(const ExpectedSubState& expected_sub_state);
     // void validate_transition(const Receipt& receipt, const ExpectedState& expected_state, const ExpectedSubState& expected_sub_state, const InMemoryState& state);
-    // void run();
+    void run();
   };
 void sample_run();
 

@@ -260,61 +260,61 @@ StateTransition::StateTransition(const bool terminate_on_error, const bool show_
 //     processor.evm().state().write_to_db(block.header.number);
 // }
 
-// void StateTransition::run() {
-//     failed_count_ = 0;
-//     total_count_ = 0;
-//     if (test_name_.length() == 0) {
+void StateTransition::run() {
+    failed_count_ = 0;
+    total_count_ = 0;
+    if (test_name_.length() == 0) {
 
-//     }
-//     // std::cout << show_diagnostics_;
-//     // get_expected_states();
-//     // for (auto expected_state : get_expected_states()) {
-//     //     // if (expected_state.fork_name() == expected_state.fork_name()) {
-//     //     //     continue;
-//     //     // }
-//     //     // if (expected_state == nullptr) {
-//     //     //     continue;
-//     //     // }
-//         // std::cout << "Expected State:" << expected_state.fork_name() << "\n";
-//     //     // for (const auto& expected_sub_state : expected_state.get_sub_states()) {
-//     //     //     ++total_count_;
-//     //     //     auto config = expected_state.get_config();
-//     //     //     auto rule_set = protocol::rule_set_factory(config);
-//     //     //     auto state = read_genesis_allocation(test_data_["pre"]);
-//     //     //     auto block = get_block(state, config);
-//     //     //     auto txn = get_transaction(expected_sub_state);
+    }
+    // std::cout << show_diagnostics_;
+    // get_expected_states();
+    // for (auto expected_state : get_expected_states()) {
+    //     // if (expected_state.fork_name() == expected_state.fork_name()) {
+    //     //     continue;
+    //     // }
+    //     // if (expected_state == nullptr) {
+    //     //     continue;
+    //     // }
+        // std::cout << "Expected State:" << expected_state.fork_name() << "\n";
+    //     // for (const auto& expected_sub_state : expected_state.get_sub_states()) {
+    //     //     ++total_count_;
+    //     //     auto config = expected_state.get_config();
+    //     //     auto rule_set = protocol::rule_set_factory(config);
+    //     //     auto state = read_genesis_allocation(test_data_["pre"]);
+    //     //     auto block = get_block(state, config);
+    //     //     auto txn = get_transaction(expected_sub_state);
 
-//     //     //     ExecutionProcessor processor{block, *rule_set, state, config, true};
-//     //     //     Receipt receipt;
+    //     //     ExecutionProcessor processor{block, *rule_set, state, config, true};
+    //     //     Receipt receipt;
 
-//     //     //     const evmc_revision rev{config.revision(block.header.number, block.header.timestamp)};
+    //     //     const evmc_revision rev{config.revision(block.header.number, block.header.timestamp)};
 
-//     //     //     auto pre_block_validation = rule_set->pre_validate_block_body(block, state);
-//     //     //     auto block_validation = rule_set->validate_block_header(block.header, state, true);
-//     //     //     auto pre_txn_validation = protocol::pre_validate_transaction(txn, rev, config.chain_id, block.header.base_fee_per_gas, block.header.blob_gas_price());
-//     //     //     auto txn_validation = protocol::validate_transaction(txn, processor.evm().state(), processor.available_gas());
+    //     //     auto pre_block_validation = rule_set->pre_validate_block_body(block, state);
+    //     //     auto block_validation = rule_set->validate_block_header(block.header, state, true);
+    //     //     auto pre_txn_validation = protocol::pre_validate_transaction(txn, rev, config.chain_id, block.header.base_fee_per_gas, block.header.blob_gas_price());
+    //     //     auto txn_validation = protocol::validate_transaction(txn, processor.evm().state(), processor.available_gas());
 
-//     //     //     if (pre_block_validation == ValidationResult::kOk &&
-//     //     //         block_validation == ValidationResult::kOk &&
-//     //     //         pre_txn_validation == ValidationResult::kOk &&
-//     //     //         txn_validation == ValidationResult::kOk) {
-//     //     //         processor.execute_transaction(txn, receipt);
-//     //     //         processor.evm().state().write_to_db(block.header.number);
-//     //     //     } else {
-//     //     //         cleanup_error_block(block, processor, rev);
-//     //     //         receipt.success = false;
-//     //     //     }
+    //     //     if (pre_block_validation == ValidationResult::kOk &&
+    //     //         block_validation == ValidationResult::kOk &&
+    //     //         pre_txn_validation == ValidationResult::kOk &&
+    //     //         txn_validation == ValidationResult::kOk) {
+    //     //         processor.execute_transaction(txn, receipt);
+    //     //         processor.evm().state().write_to_db(block.header.number);
+    //     //     } else {
+    //     //         cleanup_error_block(block, processor, rev);
+    //     //         receipt.success = false;
+    //     //     }
 
-//     //     //     validate_transition(receipt, expected_state, expected_sub_state, state);
-//     //     // }
-//     // }
+    //     //     validate_transition(receipt, expected_state, expected_sub_state, state);
+    //     // }
+    // }
 
-//     if (show_diagnostics_) {
-//     //     std::cout << "[" << test_name_ << "] "
-//     //               << "Finished total " << total_count_ << ", failed " << failed_count_ << std::endl
-//     //               << std::endl;
-//     }
-// }
+    if (show_diagnostics_) {
+    //     std::cout << "[" << test_name_ << "] "
+    //               << "Finished total " << total_count_ << ", failed " << failed_count_ << std::endl
+    //               << std::endl;
+    }
+}
 
 void sample_run() {
     const std::string json_str = R"json(
