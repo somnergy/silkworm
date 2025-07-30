@@ -9,8 +9,8 @@
 
 #include <nlohmann/json.hpp>
 
-// #include <silkworm/core/execution/execution.hpp>
-// #include <silkworm/core/state/in_memory_state.hpp>
+#include <silkworm/core/execution/execution.hpp>
+#include <silkworm/core/state/in_memory_state.hpp>
 
 #include "expected_state.hpp"
 
@@ -34,15 +34,15 @@ class StateTransition {
     explicit StateTransition(const bool terminate_on_error, const bool show_diagnostics) noexcept;
 
     // std::string name();
-    // std::string get_env(const std::string& key);
-    // bool contains_env(const std::string& key);
+    std::string get_env(const std::string& key);
+    bool contains_env(const std::string& key);
     std::vector<ExpectedState> get_expected_states();
-    // static evmc::address to_evmc_address(const std::string& address);
-    // Block get_block(InMemoryState& state, ChainConfig& chain_config);
-    // // std::unique_ptr<InMemoryState> get_state();
-    // static std::unique_ptr<evmc::address> private_key_to_address(const std::string& private_key);
-    // Transaction get_transaction(const ExpectedSubState& expected_sub_state);
-    // void validate_transition(const Receipt& receipt, const ExpectedState& expected_state, const ExpectedSubState& expected_sub_state, const InMemoryState& state);
+    static evmc::address to_evmc_address(const std::string& address);
+    Block get_block(InMemoryState& state, ChainConfig& chain_config);
+    std::unique_ptr<InMemoryState> get_state();
+    static std::unique_ptr<evmc::address> private_key_to_address(const std::string& private_key);
+    Transaction get_transaction(const ExpectedSubState& expected_sub_state);
+    void validate_transition(const Receipt& receipt, const ExpectedState& expected_state, const ExpectedSubState& expected_sub_state, const InMemoryState& state);
     void run();
   };
 void sample_run();
