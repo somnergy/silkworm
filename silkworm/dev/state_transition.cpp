@@ -22,7 +22,7 @@
 // #include <silkworm/core/types/evmc_bytes32.hpp>
 // #include <silkworm/dev/common/ecc_key_pair.hpp>
 
-// #include "expected_state.hpp"
+#include "expected_state.hpp"
 
 namespace silkworm::cmd::state_transition {
 
@@ -39,43 +39,30 @@ StateTransition::StateTransition(const std::string& json_str, const bool termina
 StateTransition::StateTransition(const bool terminate_on_error, const bool show_diagnostics) noexcept
     : terminate_on_error_{terminate_on_error},
       show_diagnostics_{show_diagnostics} {
-//     nlohmann::json base_json;
-//     const std::string json_str = R"json(
-// {"add": {"_info": {"comment": "Ori Pomerantz qbzzt1@gmail.com","filling-rpc-server": "evm version 1.11.4-unstable-e14043db-20230308","filling-tool-version": "retesteth-0.3.0-shanghai+commit.fd2c0a83.Linux.g++","generatedTestHash": "f486c80e808d34507133961cbd17c5e0f9ec049879dd3f7cc78a9eb55ac63226","labels": {"0": "add_neg1_neg1","1": "add_neg1_4","2": "add_neg1_1","3": "add_0_0","4": "add_1_neg1"},"lllcversion": "Version: 0.5.14-develop.2022.7.30+commit.a096d7a9.Linux.g++","solidity": "Version: 0.8.17+commit.8df45f5f.Linux.g++","source": "src/GeneralStateTestsFiller/VMTests/vmArithmeticTest/addFiller.yml","sourceHash": "78afea990a2d534831acc4883b9ff6e81d560091942db7234232d68fdbf1c33e"},"env": {"currentBaseFee": "0x0a","currentCoinbase": "0x2adc25665018aa1fe0e6bc666dac8fc2697ff9ba","currentDifficulty": "0x020000","currentGasLimit": "0x05f5e100","currentNumber": "0x01","currentRandom": "0x0000000000000000000000000000000000000000000000000000000000020000","currentTimestamp": "0x03e8","previousHash": "0x5e20a0453cecd065ea59c37ac63e079ee08998b6045136a8ce6635c7912ec0b6"},"post": {"Shanghai": [{"hash": "0x6e9dccb57a15e2885ff1193da0db98cbaaac218bf3a0abeb0c3ceff966de2830","indexes": {"data": 0,"gas": 0,"value": 0},"logs": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347","txbytes": "0xf885800a8404c4b40094cccccccccccccccccccccccccccccccccccccccc01a4693c613900000000000000000000000000000000000000000000000000000000000000001ba0e8ff56322287185f6afd3422a825b47bf5c1a4ccf0dc0389cdc03f7c1c32b7eaa0776b02f9f5773238d3ff36b74a123f409cd6420908d7855bbe4c8ff63e00d698"},{"hash": "0x1a3420dfb2280397c1b81ff159bd4d6eddc12d7e333e82a01fd4afafad3b2ae4","indexes": {"data": 1,"gas": 0,"value": 0},"logs": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347","txbytes": "0xf885800a8404c4b40094cccccccccccccccccccccccccccccccccccccccc01a4693c613900000000000000000000000000000000000000000000000000000000000000011ba02c5e81a024dd0f6fb773c8787fa46ab5eb55cb73df83562e6ddbe9106a3df7f6a029437b9a23e45bbfce086f2ddaa98b1e9e6914d7e58e2c5a128310042b332f89"},{"hash": "0x416be8cb4f40d5a29ed56578cf776c5198e58c181ab3534a1094df5f7f61fb02","indexes": {"data": 2,"gas": 0,"value": 0},"logs": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347","txbytes": "0xf885800a8404c4b40094cccccccccccccccccccccccccccccccccccccccc01a4693c613900000000000000000000000000000000000000000000000000000000000000021ba0fc37ad4eb0633eb18f2b7867bacbe994a2ffcbb04a71e394e6e76041f6ce216fa03b1b415a5c386d8de9e16be9fdc188234b80a0dec99922d03c240f2e463053e3"},{"hash": "0x416be8cb4f40d5a29ed56578cf776c5198e58c181ab3534a1094df5f7f61fb02","indexes": {"data": 3,"gas": 0,"value": 0},"logs": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347","txbytes": "0xf885800a8404c4b40094cccccccccccccccccccccccccccccccccccccccc01a4693c613900000000000000000000000000000000000000000000000000000000000000031ba0f06eb219c5dba98711a9a2678339f64d172bfac289a5c43a0018d3917be8dc2aa0147bd7a6ee30217e63cbddc28b0e72f115da754d8916b87992aa27ed00eb105e"},{"hash": "0x416be8cb4f40d5a29ed56578cf776c5198e58c181ab3534a1094df5f7f61fb02","indexes": {"data": 4,"gas": 0,"value": 0},"logs": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347","txbytes": "0xf885800a8404c4b40094cccccccccccccccccccccccccccccccccccccccc01a4693c613900000000000000000000000000000000000000000000000000000000000000041ba0c148a101aa54703ff0e949441bdba90b1972a16c338f7f9a24b07f0313cd49d6a028cb82229b8a57e2048761d6fa5060c5b459f000d4e218de1372c1df9cfa171e"}]},"pre": {"0x0000000000000000000000000000000000000100": {"balance": "0x0ba1a9ce0ba1a9ce","code": "0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0160005500","nonce": "0x00","storage": {}},"0x0000000000000000000000000000000000000101": {"balance": "0x0ba1a9ce0ba1a9ce","code": "0x60047fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0160005500","nonce": "0x00","storage": {}},"0x0000000000000000000000000000000000000102": {"balance": "0x0ba1a9ce0ba1a9ce","code": "0x60017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0160005500","nonce": "0x00","storage": {}},"0x0000000000000000000000000000000000000103": {"balance": "0x0ba1a9ce0ba1a9ce","code": "0x600060000160005500","nonce": "0x00","storage": {}},"0x0000000000000000000000000000000000000104": {"balance": "0x0ba1a9ce0ba1a9ce","code": "0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff60010160005500","nonce": "0x00","storage": {}},"0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b": {"balance": "0x0ba1a9ce0ba1a9ce","code": "0x","nonce": "0x00","storage": {}},"0xcccccccccccccccccccccccccccccccccccccccc": {"balance": "0x0ba1a9ce0ba1a9ce","code": "0x600060006000600060006004356101000162fffffff100","nonce": "0x00","storage": {}}},"transaction": {"data": ["0x693c61390000000000000000000000000000000000000000000000000000000000000000","0x693c61390000000000000000000000000000000000000000000000000000000000000001","0x693c61390000000000000000000000000000000000000000000000000000000000000002","0x693c61390000000000000000000000000000000000000000000000000000000000000003","0x693c61390000000000000000000000000000000000000000000000000000000000000004"],"gasLimit": ["0x04c4b400"],"gasPrice": "0x0a","nonce": "0x00","secretKey": "0x45a915e4d060149eb4365960e6a7a45f334393093061116b197e3240065ff2d8","sender": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b","to": "0xcccccccccccccccccccccccccccccccccccccccc","value": ["0x01"]}}}
-//     )json";
-//     base_json = nlohmann::json::parse(json_str);
-//     auto test_object = base_json.begin();
-//     test_name_ = test_object.key();
-//     test_data_ = test_object.value();
+    nlohmann::json base_json;
+    const std::string json_str = R"json(
+{"add": {"_info": {"comment": "Ori Pomerantz qbzzt1@gmail.com","filling-rpc-server": "evm version 1.11.4-unstable-e14043db-20230308","filling-tool-version": "retesteth-0.3.0-shanghai+commit.fd2c0a83.Linux.g++","generatedTestHash": "f486c80e808d34507133961cbd17c5e0f9ec049879dd3f7cc78a9eb55ac63226","labels": {"0": "add_neg1_neg1","1": "add_neg1_4","2": "add_neg1_1","3": "add_0_0","4": "add_1_neg1"},"lllcversion": "Version: 0.5.14-develop.2022.7.30+commit.a096d7a9.Linux.g++","solidity": "Version: 0.8.17+commit.8df45f5f.Linux.g++","source": "src/GeneralStateTestsFiller/VMTests/vmArithmeticTest/addFiller.yml","sourceHash": "78afea990a2d534831acc4883b9ff6e81d560091942db7234232d68fdbf1c33e"},"env": {"currentBaseFee": "0x0a","currentCoinbase": "0x2adc25665018aa1fe0e6bc666dac8fc2697ff9ba","currentDifficulty": "0x020000","currentGasLimit": "0x05f5e100","currentNumber": "0x01","currentRandom": "0x0000000000000000000000000000000000000000000000000000000000020000","currentTimestamp": "0x03e8","previousHash": "0x5e20a0453cecd065ea59c37ac63e079ee08998b6045136a8ce6635c7912ec0b6"},"post": {"Shanghai": [{"hash": "0x6e9dccb57a15e2885ff1193da0db98cbaaac218bf3a0abeb0c3ceff966de2830","indexes": {"data": 0,"gas": 0,"value": 0},"logs": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347","txbytes": "0xf885800a8404c4b40094cccccccccccccccccccccccccccccccccccccccc01a4693c613900000000000000000000000000000000000000000000000000000000000000001ba0e8ff56322287185f6afd3422a825b47bf5c1a4ccf0dc0389cdc03f7c1c32b7eaa0776b02f9f5773238d3ff36b74a123f409cd6420908d7855bbe4c8ff63e00d698"},{"hash": "0x1a3420dfb2280397c1b81ff159bd4d6eddc12d7e333e82a01fd4afafad3b2ae4","indexes": {"data": 1,"gas": 0,"value": 0},"logs": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347","txbytes": "0xf885800a8404c4b40094cccccccccccccccccccccccccccccccccccccccc01a4693c613900000000000000000000000000000000000000000000000000000000000000011ba02c5e81a024dd0f6fb773c8787fa46ab5eb55cb73df83562e6ddbe9106a3df7f6a029437b9a23e45bbfce086f2ddaa98b1e9e6914d7e58e2c5a128310042b332f89"},{"hash": "0x416be8cb4f40d5a29ed56578cf776c5198e58c181ab3534a1094df5f7f61fb02","indexes": {"data": 2,"gas": 0,"value": 0},"logs": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347","txbytes": "0xf885800a8404c4b40094cccccccccccccccccccccccccccccccccccccccc01a4693c613900000000000000000000000000000000000000000000000000000000000000021ba0fc37ad4eb0633eb18f2b7867bacbe994a2ffcbb04a71e394e6e76041f6ce216fa03b1b415a5c386d8de9e16be9fdc188234b80a0dec99922d03c240f2e463053e3"},{"hash": "0x416be8cb4f40d5a29ed56578cf776c5198e58c181ab3534a1094df5f7f61fb02","indexes": {"data": 3,"gas": 0,"value": 0},"logs": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347","txbytes": "0xf885800a8404c4b40094cccccccccccccccccccccccccccccccccccccccc01a4693c613900000000000000000000000000000000000000000000000000000000000000031ba0f06eb219c5dba98711a9a2678339f64d172bfac289a5c43a0018d3917be8dc2aa0147bd7a6ee30217e63cbddc28b0e72f115da754d8916b87992aa27ed00eb105e"},{"hash": "0x416be8cb4f40d5a29ed56578cf776c5198e58c181ab3534a1094df5f7f61fb02","indexes": {"data": 4,"gas": 0,"value": 0},"logs": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347","txbytes": "0xf885800a8404c4b40094cccccccccccccccccccccccccccccccccccccccc01a4693c613900000000000000000000000000000000000000000000000000000000000000041ba0c148a101aa54703ff0e949441bdba90b1972a16c338f7f9a24b07f0313cd49d6a028cb82229b8a57e2048761d6fa5060c5b459f000d4e218de1372c1df9cfa171e"}]},"pre": {"0x0000000000000000000000000000000000000100": {"balance": "0x0ba1a9ce0ba1a9ce","code": "0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0160005500","nonce": "0x00","storage": {}},"0x0000000000000000000000000000000000000101": {"balance": "0x0ba1a9ce0ba1a9ce","code": "0x60047fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0160005500","nonce": "0x00","storage": {}},"0x0000000000000000000000000000000000000102": {"balance": "0x0ba1a9ce0ba1a9ce","code": "0x60017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0160005500","nonce": "0x00","storage": {}},"0x0000000000000000000000000000000000000103": {"balance": "0x0ba1a9ce0ba1a9ce","code": "0x600060000160005500","nonce": "0x00","storage": {}},"0x0000000000000000000000000000000000000104": {"balance": "0x0ba1a9ce0ba1a9ce","code": "0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff60010160005500","nonce": "0x00","storage": {}},"0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b": {"balance": "0x0ba1a9ce0ba1a9ce","code": "0x","nonce": "0x00","storage": {}},"0xcccccccccccccccccccccccccccccccccccccccc": {"balance": "0x0ba1a9ce0ba1a9ce","code": "0x600060006000600060006004356101000162fffffff100","nonce": "0x00","storage": {}}},"transaction": {"data": ["0x693c61390000000000000000000000000000000000000000000000000000000000000000","0x693c61390000000000000000000000000000000000000000000000000000000000000001","0x693c61390000000000000000000000000000000000000000000000000000000000000002","0x693c61390000000000000000000000000000000000000000000000000000000000000003","0x693c61390000000000000000000000000000000000000000000000000000000000000004"],"gasLimit": ["0x04c4b400"],"gasPrice": "0x0a","nonce": "0x00","secretKey": "0x45a915e4d060149eb4365960e6a7a45f334393093061116b197e3240065ff2d8","sender": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b","to": "0xcccccccccccccccccccccccccccccccccccccccc","value": ["0x01"]}}}
+    )json";
+    base_json = nlohmann::json::parse(json_str);
+    auto test_object = base_json.begin();
+    test_name_ = test_object.key();
+    test_data_ = test_object.value();
 }
 
+std::vector<ExpectedState> StateTransition::get_expected_states() {
+    std::vector<ExpectedState> expected_states;
+    auto post_items = test_data_.at("post").items();
+    // std::cout << "get_expected_states:test_data" << post_items;
+    for (const auto& post_state : post_items) {
+        // std::cout << "get_expected_states: test_data_.at(\"post\").items(i)" << post_state << "\n";
+        auto data = post_state.value();
+        // std::cout << "get_expected_states:items(i).value().array:" << data;
+        const std::string& key = post_state.key();
+        expected_states.emplace_back(data[0], key);
+    }
 
-// std::string StateTransition::name() {
-//     return test_name_;
-// }
-
-// std::string StateTransition::get_env(const std::string& key) {
-//     return test_data_.at("env").at(key);
-// }
-
-// bool StateTransition::contains_env(const std::string& key) {
-//     return test_data_.at("env").contains(key);
-// }
-
-// std::vector<ExpectedState> StateTransition::get_expected_states() {
-//     std::vector<ExpectedState> expected_states;
-//     auto post_items = test_data_.at("post").items();
-//     // std::cout << "get_expected_states:test_data" << post_items;
-//     for (const auto& post_state : post_items) {
-//         // std::cout << "get_expected_states: test_data_.at(\"post\").items(i)" << post_state << "\n";
-//         auto data = post_state.value();
-//         // std::cout << "get_expected_states:items(i).value().array:" << data;
-//         const std::string& key = post_state.key();
-//         expected_states.emplace_back(data[0], key);
-//     }
-
-//     return expected_states;
-// }
+    return expected_states;
+}
 
 // evmc::address StateTransition::to_evmc_address(const std::string& address) {
 //     evmc::address out;
@@ -268,51 +255,53 @@ void StateTransition::run() {
     }
     // std::cout << show_diagnostics_;
     // get_expected_states();
-    // for (auto expected_state : get_expected_states()) {
-    //     // if (expected_state.fork_name() == expected_state.fork_name()) {
-    //     //     continue;
-    //     // }
+    for (auto expected_state : get_expected_states()) {
+        if (expected_state.fork_name() == expected_state.fork_name()) {
+            continue;
+        }
     //     // if (expected_state == nullptr) {
     //     //     continue;
     //     // }
-        // std::cout << "Expected State:" << expected_state.fork_name() << "\n";
-    //     // for (const auto& expected_sub_state : expected_state.get_sub_states()) {
-    //     //     ++total_count_;
-    //     //     auto config = expected_state.get_config();
-    //     //     auto rule_set = protocol::rule_set_factory(config);
-    //     //     auto state = read_genesis_allocation(test_data_["pre"]);
-    //     //     auto block = get_block(state, config);
-    //     //     auto txn = get_transaction(expected_sub_state);
+        for (const auto& expected_sub_state : expected_state.get_sub_states()) {
 
-    //     //     ExecutionProcessor processor{block, *rule_set, state, config, true};
-    //     //     Receipt receipt;
+            if (expected_sub_state.exceptionExpected) {
 
-    //     //     const evmc_revision rev{config.revision(block.header.number, block.header.timestamp)};
+            }
 
-    //     //     auto pre_block_validation = rule_set->pre_validate_block_body(block, state);
-    //     //     auto block_validation = rule_set->validate_block_header(block.header, state, true);
-    //     //     auto pre_txn_validation = protocol::pre_validate_transaction(txn, rev, config.chain_id, block.header.base_fee_per_gas, block.header.blob_gas_price());
-    //     //     auto txn_validation = protocol::validate_transaction(txn, processor.evm().state(), processor.available_gas());
+            // ++total_count_;
+            // auto config = expected_state.get_config();
+            // auto rule_set = protocol::rule_set_factory(config);
+            // auto state = read_genesis_allocation(test_data_["pre"]);
+            // auto block = get_block(state, config);
+            // auto txn = get_transaction(expected_sub_state);
 
-    //     //     if (pre_block_validation == ValidationResult::kOk &&
-    //     //         block_validation == ValidationResult::kOk &&
-    //     //         pre_txn_validation == ValidationResult::kOk &&
-    //     //         txn_validation == ValidationResult::kOk) {
-    //     //         processor.execute_transaction(txn, receipt);
-    //     //         processor.evm().state().write_to_db(block.header.number);
-    //     //     } else {
-    //     //         cleanup_error_block(block, processor, rev);
-    //     //         receipt.success = false;
-    //     //     }
+            // ExecutionProcessor processor{block, *rule_set, state, config, true};
+            // Receipt receipt;
 
-    //     //     validate_transition(receipt, expected_state, expected_sub_state, state);
-    //     // }
-    // }
+            // const evmc_revision rev{config.revision(block.header.number, block.header.timestamp)};
+
+            // auto pre_block_validation = rule_set->pre_validate_block_body(block, state);
+            // auto block_validation = rule_set->validate_block_header(block.header, state, true);
+            // auto pre_txn_validation = protocol::pre_validate_transaction(txn, rev, config.chain_id, block.header.base_fee_per_gas, block.header.blob_gas_price());
+            // auto txn_validation = protocol::validate_transaction(txn, processor.evm().state(), processor.available_gas());
+
+            // if (pre_block_validation == ValidationResult::kOk &&
+            //     block_validation == ValidationResult::kOk &&
+            //     pre_txn_validation == ValidationResult::kOk &&
+            //     txn_validation == ValidationResult::kOk) {
+            //     processor.execute_transaction(txn, receipt);
+            //     processor.evm().state().write_to_db(block.header.number);
+            // } else {
+            //     cleanup_error_block(block, processor, rev);
+            //     receipt.success = false;
+            // }
+
+            // validate_transition(receipt, expected_state, expected_sub_state, state);
+        }
+    }
 
     if (show_diagnostics_) {
-    //     std::cout << "[" << test_name_ << "] "
-    //               << "Finished total " << total_count_ << ", failed " << failed_count_ << std::endl
-    //               << std::endl;
+        // std::cout doesn't play well with risv
     }
 }
 
@@ -325,10 +314,10 @@ void sample_run() {
 }
 
 
-    Dog::Dog(const bool terminate_on_error, const bool show_diagnostics) noexcept
-        : terminate_on_error_{terminate_on_error},
-        show_diagnostics_{show_diagnostics} {
-    }
+    // Dog::Dog(const bool terminate_on_error, const bool show_diagnostics) noexcept
+    //     : terminate_on_error_{terminate_on_error},
+    //     show_diagnostics_{show_diagnostics} {
+    // }
 
     // Dog::Dog(const std::string& file_path) noexcept {
     //         if (file_path.length() == 0) {
@@ -342,14 +331,14 @@ void sample_run() {
 
     //         }
     // }
-    int Dog::getLives() {
-        return lives;
-    }
-    void Dog::doStuff() {
-        if (show_diagnostics_) {
-            test_name_  = "moha";
-        }
-    }
+    // int Dog::getLives() {
+    //     return lives;
+    // }
+    // void Dog::doStuff() {
+    //     if (show_diagnostics_) {
+    //         test_name_  = "moha";
+    //     }
+    // }
 
 }  // namespace silkworm::cmd::state_transition
 

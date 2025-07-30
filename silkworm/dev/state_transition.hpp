@@ -12,7 +12,7 @@
 // #include <silkworm/core/execution/execution.hpp>
 // #include <silkworm/core/state/in_memory_state.hpp>
 
-// #include "expected_state.hpp"
+#include "expected_state.hpp"
 
 namespace silkworm::cmd::state_transition {
 
@@ -36,7 +36,7 @@ class StateTransition {
     // std::string name();
     // std::string get_env(const std::string& key);
     // bool contains_env(const std::string& key);
-    // std::vector<ExpectedState> get_expected_states();
+    std::vector<ExpectedState> get_expected_states();
     // static evmc::address to_evmc_address(const std::string& address);
     // Block get_block(InMemoryState& state, ChainConfig& chain_config);
     // // std::unique_ptr<InMemoryState> get_state();
@@ -46,48 +46,5 @@ class StateTransition {
     void run();
   };
 void sample_run();
-
-class Dog {
-    private:
-    int lives;
-    std::string petName;
-
-    nlohmann::json test_data_;
-    std::string test_name_;
-    unsigned total_count_{};
-    unsigned failed_count_{};
-    bool terminate_on_error_{false};
-    bool show_diagnostics_{false};
-
-    public:
-    explicit Dog(const bool terminate_on_error, const bool show_diagnostics) noexcept;
-    //     : terminate_on_error_{terminate_on_error},
-    //     show_diagnostics_{show_diagnostics} {
-    // }
-
-    explicit Dog(const std::string& file_path) noexcept 
-    {
-          if (file_path.length() == 0) {
-            
-          }
-    }
-    explicit Dog(const std::string& json_str, bool terminate_on_error, bool show_diagnostics) noexcept 
-            : terminate_on_error_{terminate_on_error},
-        show_diagnostics_{show_diagnostics} {
-          if (json_str.length() == 0) {
-
-          }
-    }
-    int getLives() ;
-    // {
-    //     return lives;
-    // }
-    void doStuff() ;
-    // {
-    //     if (show_diagnostics_) {
-    //         test_name_  = "moha";
-    //     }
-    // }
-};
 
 }  // namespace silkworm::cmd::state_transition
