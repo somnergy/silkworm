@@ -355,7 +355,7 @@ void StateTransition::run() {
             auto config = expected_state.get_config();
             auto rule_set = protocol::rule_set_factory(config);
             // if (rule_set == nullptr) {
-                // break;
+            //     break;
             // }
             auto state = read_genesis_allocation(test_data_["pre"]);
             // state.unwind_state_changes(0);
@@ -372,11 +372,11 @@ void StateTransition::run() {
             // if (txn.chain_id.value().num_bits == 0) {
 
             // }
-            // ExecutionProcessor processor{block, *rule_set, state, config, true};
+            ExecutionProcessor processor{block, *rule_set, state, config, true};
 
-            // if (processor.available_gas() == 1) {
+            if (processor.available_gas() == 1) {
 
-            // }
+            }
             // Receipt receipt;
 
             // const evmc_revision rev{config.revision(block.header.number, block.header.timestamp)};

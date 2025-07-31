@@ -252,26 +252,26 @@ void RuleSet::add_fee_transfer_log(IntraBlockState&, const intx::uint256&, const
     // do nothing by default
 }
 
-static RuleSetPtr pre_merge_rule_set(const ChainConfig& chain_config) {
-    return std::visit<RuleSetPtr>(
-        Overloaded{
-            [&](const NoPreMergeConfig&) { return nullptr; },
-            [&](const EthashConfig&) { return std::make_unique<EthashRuleSet>(chain_config); },
-            [&](const bor::Config&) { return std::make_unique<BorRuleSet>(chain_config); },
-        },
-        chain_config.rule_set_config);
-}
+// static RuleSetPtr pre_merge_rule_set(const ChainConfig& chain_config) {
+//     return std::visit<RuleSetPtr>(
+//         Overloaded{
+//             [&](const NoPreMergeConfig&) { return nullptr; },
+//             [&](const EthashConfig&) { return std::make_unique<EthashRuleSet>(chain_config); },
+//             [&](const bor::Config&) { return std::make_unique<BorRuleSet>(chain_config); },
+//         },
+//         chain_config.rule_set_config);
+// }
 
 RuleSetPtr rule_set_factory(const ChainConfig& chain_config) {
-    if (!chain_config.valid_pre_merge_config()){
-        // DO something but don't abort
-    }
+    // SILKWORM_ASSERT(chain_config.valid_pre_merge_config());
 
-    RuleSetPtr rule_set{pre_merge_rule_set(chain_config)};
+    // RuleSetPtr rule_set{pre_merge_rule_set(chain_config)};
     // if (chain_config.terminal_total_difficulty) {
     //     rule_set = std::make_unique<MergeRuleSet>(std::move(rule_set), chain_config);
     // }
-    return rule_set;
+    // return rule_set;
+    return std::make_unique<MergeRuleSet>(std::make_unique<EthashRuleSet>(chain_config), chain_config);
+
 }
 
 std::ostream& operator<<(std::ostream& out, const BlockReward& reward) {
