@@ -44,7 +44,7 @@ class StateTransition {
     Transaction get_transaction(const ExpectedSubState& expected_sub_state);
     void validate_transition(const Receipt& receipt, const ExpectedState& expected_state, const ExpectedSubState& expected_sub_state, const InMemoryState& state);
     void run();
-    void get_transaction2(const ExpectedSubState& expected_sub_state);
+    Transaction2 get_transaction2(const ExpectedSubState& expected_sub_state);
 
   };
 void sample_run();

@@ -151,6 +151,7 @@ std::unique_ptr<evmc::address> StateTransition::private_key_to_address(const std
 
 Transaction StateTransition::get_transaction(const ExpectedSubState& expected_sub_state) {
     Transaction txn;
+    // Transaction2 txn;
     // auto j_transaction = test_data_["transaction"];
     // // std::cout << "J_transaction" << j_transaction.dump();
 
@@ -219,8 +220,8 @@ Transaction StateTransition::get_transaction(const ExpectedSubState& expected_su
     return txn;
 }
 
-void StateTransition::get_transaction2(const ExpectedSubState& expected_sub_state) {
-    Transaction txn;
+Transaction2 StateTransition::get_transaction2(const ExpectedSubState& expected_sub_state) {
+    Transaction2 txn;
     // auto j_transaction = test_data_["transaction"];
     // // std::cout << "J_transaction" << j_transaction.dump();
 
@@ -286,7 +287,7 @@ void StateTransition::get_transaction2(const ExpectedSubState& expected_sub_stat
     //     }
     // }
 
-    // return txn;
+    return txn;
 }
 
 void StateTransition::validate_transition(const Receipt& receipt, const ExpectedState& expected_state, const ExpectedSubState& expected_sub_state, const InMemoryState& state) {
@@ -353,25 +354,27 @@ void StateTransition::run() {
             ++total_count_;
             auto config = expected_state.get_config();
             auto rule_set = protocol::rule_set_factory(config);
-            if (rule_set == nullptr) {
-
-            }
+            // if (rule_set == nullptr) {
+                // break;
+            // }
             auto state = read_genesis_allocation(test_data_["pre"]);
             // state.unwind_state_changes(0);
             auto block = get_block(state, config);
             if (block.header.difficulty.num_bits == 0) {
 
             }
-            get_transaction2(expected_sub_state);
+            // get_transaction2(expected_sub_state);
 
-            // auto txn = get_transaction(expected_sub_state);
+            auto txn = get_transaction(expected_sub_state);
+            if (txn.nonce == 1) {
+
+            }
             // if (txn.chain_id.value().num_bits == 0) {
 
             // }
-
             // ExecutionProcessor processor{block, *rule_set, state, config, true};
 
-            // if (processor.available_gas() == 0) {
+            // if (processor.available_gas() == 1) {
 
             // }
             // Receipt receipt;
@@ -382,6 +385,10 @@ void StateTransition::run() {
             // auto block_validation = rule_set->validate_block_header(block.header, state, true);
             // auto pre_txn_validation = protocol::pre_validate_transaction(txn, rev, config.chain_id, block.header.base_fee_per_gas, block.header.blob_gas_price());
             // auto txn_validation = protocol::validate_transaction(txn, processor.evm().state(), processor.available_gas());
+
+            // if (txn_validation == ValidationResult::kOk) {
+
+            // }
 
             // if (pre_block_validation == ValidationResult::kOk &&
             //     block_validation == ValidationResult::kOk &&

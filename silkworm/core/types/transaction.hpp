@@ -99,6 +99,45 @@ struct UnsignedTransaction {
     friend bool operator==(const UnsignedTransaction&, const UnsignedTransaction&) = default;
 };
 
+
+struct UnsignedTransaction2 {
+    TransactionType type{TransactionType::kLegacy};
+    // int myStuff;
+    std::optional<intx::uint256> chain_id{std::nullopt};  // nullopt means a pre-EIP-155 transaction
+
+    uint64_t nonce{0};
+    intx::uint256 max_priority_fee_per_gas{0};  // EIP-1559
+    intx::uint256 max_fee_per_gas{0};
+    uint64_t gas_limit{0};
+    std::optional<evmc::address> to{std::nullopt};
+    intx::uint256 value{0};
+    Bytes data{};
+
+
+    // ======================================
+    std::vector<AccessListEntry> access_list{};  // EIP-2930
+
+    // EIP-4844: Shard Blob Transactions
+    intx::uint256 max_fee_per_blob_gas{0};
+    std::vector<Hash> blob_versioned_hashes{};
+
+    // EIP-7702
+    std::vector<Authorization> authorizations;
+
+    //! \brief Maximum possible cost of normal and data (EIP-4844) gas
+    intx::uint512 maximum_gas_cost() const;
+
+    intx::uint256 priority_fee_per_gas(const intx::uint256& base_fee_per_gas) const;  // EIP-1559
+    intx::uint256 effective_gas_price(const intx::uint256& base_fee_per_gas) const;   // EIP-1559
+
+    uint64_t total_blob_gas() const;  // EIP-4844
+
+    void encode_for_signing(Bytes& into) const;
+
+    // friend bool operator==(const UnsignedTransaction&, const UnsignedTransaction&) = default;
+};
+
+
 class Transaction : public UnsignedTransaction {
   public:
     bool odd_y_parity{false};
@@ -131,6 +170,42 @@ class Transaction : public UnsignedTransaction {
     mutable evmc::bytes32 cached_hash_;
     mutable ResettableOnceFlag hash_computed_;
 };
+
+
+
+class Transaction2 : public UnsignedTransaction2 {
+//   public:
+//     bool odd_y_parity{false};
+//     intx::uint256 r{0}, s{0};  // signature
+
+//     intx::uint256 v() const;  // EIP-155
+
+//     //! \brief Returns false if v is not acceptable (v != 27 && v != 28 && v < 35, see EIP-155)
+//     bool set_v(const intx::uint256& v);
+
+//     //! \brief Sender recovered from the signature.
+//     //! \see Yellow Paper, Appendix F "Signing Transactions",
+//     //! EIP-2: Homestead Hard-fork Changes and
+//     //! EIP-155: Simple replay attack protection.
+//     //! If recovery fails std::nullopt is returned.
+//     std::optional<evmc::address> sender() const;
+
+//     void set_sender(const evmc::address& sender);
+
+//     evmc::bytes32 hash() const;
+
+//     //! Reset the computed values
+//     void reset();
+
+//   private:
+//     mutable std::optional<evmc::address> sender_{std::nullopt};
+//     mutable ResettableOnceFlag sender_recovered_;
+
+//     // cached value for hash if already computed
+//     mutable evmc::bytes32 cached_hash_;
+//     mutable ResettableOnceFlag hash_computed_;
+};
+
 
 namespace rlp {
     void encode(Bytes& to, const AccessListEntry&);
