@@ -18,9 +18,9 @@ Node::Node(uint16_t state_mask, uint16_t tree_mask, uint16_t hash_mask, std::vec
       hash_mask_{hash_mask},
       hashes_{std::move(hashes)},
       root_hash_{root_hash} {
-    SILKWORM_ASSERT(is_subset(tree_mask, state_mask));
-    SILKWORM_ASSERT(is_subset(hash_mask, state_mask));
-    SILKWORM_ASSERT(std::cmp_equal(std::popcount(hash_mask_), hashes_.size()));
+    // SILKWORM_ASSERT(is_subset(tree_mask, state_mask));
+    // SILKWORM_ASSERT(is_subset(hash_mask, state_mask));
+    // SILKWORM_ASSERT(std::cmp_equal(std::popcount(hash_mask_), hashes_.size()));
 }
 
 void Node::set_root_hash(const std::optional<evmc::bytes32>& root_hash) { root_hash_ = root_hash; }

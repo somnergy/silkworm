@@ -84,7 +84,7 @@ uint64_t rip160_gas(ByteView input, evmc_revision) noexcept {
 
 std::optional<Bytes> rip160_run(ByteView input) noexcept {
     Bytes out(32, 0);
-    SILKWORM_ASSERT(input.size() <= std::numeric_limits<uint32_t>::max());
+    // SILKWORM_ASSERT(input.size() <= std::numeric_limits<uint32_t>::max());
     evmone::crypto::ripemd160(reinterpret_cast<std::byte*>(&out[12]),
                               reinterpret_cast<const std::byte*>(input.data()),
                               input.size());

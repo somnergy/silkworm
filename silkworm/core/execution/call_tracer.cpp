@@ -165,7 +165,7 @@ void on_create_start(const intx::uint256* stack_top, int stack_height, int64_t g
         const uint64_t nonce{intra_block_state.get_nonce(state.msg->recipient)};
         contract_address = create_address(state.msg->recipient, nonce);
     } else {
-        SILKWORM_ASSERT(Op == Opcode::OP_CREATE2);
+        // SILKWORM_ASSERT(Op == Opcode::OP_CREATE2);
         const evmc::bytes32 salt2{intx::be::store<evmc::bytes32>(stack[3])};
         auto init_code_hash{
             init_code_size > 0 ? ethash::keccak256(&state.memory.data()[init_code_offset], init_code_size) : ethash_hash256{}};

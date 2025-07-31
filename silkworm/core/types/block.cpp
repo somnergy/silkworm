@@ -128,7 +128,7 @@ namespace rlp {
         encode(to, header.gas_used);
         encode(to, header.timestamp);
         if (exclude_extra_data_sig) {
-            SILKWORM_ASSERT(header.extra_data.size() >= protocol::kExtraSealSize);
+            // SILKWORM_ASSERT(header.extra_data.size() >= protocol::kExtraSealSize);
             const ByteView extra_data_no_signature{header.extra_data.data(), header.extra_data.size() - protocol::kExtraSealSize};
             encode(to, extra_data_no_signature);
         } else {

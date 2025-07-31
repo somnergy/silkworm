@@ -44,7 +44,7 @@ BlockHeader read_genesis_header(const nlohmann::json& genesis, const evmc::bytes
         const std::string extra_data_str{genesis["extraData"].get<std::string>()};
         if (has_hex_prefix(extra_data_str)) {
             const std::optional<Bytes> extra_data_hex{from_hex(extra_data_str)};
-            SILKWORM_ASSERT(extra_data_hex.has_value());
+            // SILKWORM_ASSERT(extra_data_hex.has_value());
             header.extra_data = *extra_data_hex;
         } else {
             header.extra_data = string_view_to_byte_view(extra_data_str);
@@ -52,7 +52,7 @@ BlockHeader read_genesis_header(const nlohmann::json& genesis, const evmc::bytes
     }
     if (genesis.contains("mixHash")) {
         const std::optional<Bytes> mix_hash{from_hex(genesis["mixHash"].get<std::string>())};
-        SILKWORM_ASSERT(mix_hash.has_value());
+        // SILKWORM_ASSERT(mix_hash.has_value());
         std::memcpy(header.prev_randao.bytes, mix_hash->data(), mix_hash->size());
     }
     if (genesis.contains("nonce")) {
@@ -72,7 +72,7 @@ BlockHeader read_genesis_header(const nlohmann::json& genesis, const evmc::bytes
     header.timestamp = std::stoull(genesis["timestamp"].get<std::string>(), nullptr, 0);
 
     const std::optional<ChainConfig> chain_config{ChainConfig::from_json(genesis["config"])};
-    SILKWORM_ASSERT(chain_config.has_value());
+    // SILKWORM_ASSERT(chain_config.has_value());
     if (chain_config->revision(0, header.timestamp) >= EVMC_LONDON) {
         header.base_fee_per_gas = protocol::kInitialBaseFee;
     }

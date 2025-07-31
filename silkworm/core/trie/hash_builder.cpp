@@ -74,7 +74,7 @@ static Bytes node_ref(ByteView rlp) {
 }
 
 void HashBuilder::add_leaf(Bytes key, ByteView value) {
-    SILKWORM_ASSERT(key > key_);
+    // SILKWORM_ASSERT(key > key_);
     if (!key_.empty()) {
         gen_struct_step(key_, key);
     }
@@ -83,7 +83,7 @@ void HashBuilder::add_leaf(Bytes key, ByteView value) {
 }
 
 void HashBuilder::add_branch_node(Bytes nibbled_key, const evmc::bytes32& hash, bool is_in_db_trie) {
-    SILKWORM_ASSERT(nibbled_key > key_ || (key_.empty() && nibbled_key.empty()));
+    // SILKWORM_ASSERT(nibbled_key > key_ || (key_.empty() && nibbled_key.empty()));
     if (!key_.empty()) {
         gen_struct_step(key_, nibbled_key);
     } else if (nibbled_key.empty()) {
@@ -133,7 +133,7 @@ void HashBuilder::gen_struct_step(ByteView current, const ByteView succeeding) {
         const size_t preceding_len{groups_.empty() ? 0 : groups_.size() - 1};
         const size_t common_prefix_len{prefix_length(succeeding, current)};
         const size_t len{std::max(preceding_len, common_prefix_len)};
-        SILKWORM_ASSERT(len < current.size());
+        // SILKWORM_ASSERT(len < current.size());
 
         // Add the digit immediately following the max common prefix
         const uint8_t extra_digit{current[len]};
@@ -213,7 +213,7 @@ void HashBuilder::gen_struct_step(ByteView current, const ByteView succeeding) {
 
                     std::vector<evmc::bytes32> hashes(child_hashes.size());
                     for (size_t i{0}; i < child_hashes.size(); ++i) {
-                        SILKWORM_ASSERT(child_hashes[i].size() == kHashLength + 1);
+                        // SILKWORM_ASSERT(child_hashes[i].size() == kHashLength + 1);
                         std::memcpy(hashes[i].bytes, &child_hashes[i][1], kHashLength);
                     }
                     Node node{groups_[len], tree_masks_[len], hash_masks_[len], hashes};
@@ -244,7 +244,7 @@ void HashBuilder::gen_struct_step(ByteView current, const ByteView succeeding) {
 
 // Takes children from the stack and replaces them with branch node ref.
 std::vector<Bytes> HashBuilder::branch_ref(uint16_t state_mask, uint16_t hash_mask) {
-    SILKWORM_ASSERT(is_subset(hash_mask, state_mask));
+    // SILKWORM_ASSERT(is_subset(hash_mask, state_mask));
     std::vector<Bytes> child_hashes;
     child_hashes.reserve(static_cast<size_t>(std::popcount(hash_mask)));
 

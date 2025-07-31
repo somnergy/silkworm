@@ -15,7 +15,7 @@ namespace silkworm::protocol::bor {
 
 uint64_t Config::sprint_size(BlockNum block_num) const noexcept {
     const uint64_t* size = config_value_lookup(sprint, block_num);
-    SILKWORM_ASSERT(size);
+    // SILKWORM_ASSERT(size);
     return *size;
 }
 

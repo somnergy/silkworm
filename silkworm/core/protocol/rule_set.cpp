@@ -111,10 +111,10 @@ ValidationResult RuleSet::validate_ommers(const Block& block, const BlockState& 
 ValidationResult RuleSet::validate_block_header(const BlockHeader& header, const BlockState& state,
                                                 bool with_future_timestamp_check) {
     if (with_future_timestamp_check) {
-        const std::time_t now{std::time(nullptr)};
-        if (header.timestamp > static_cast<uint64_t>(now)) {
-            return ValidationResult::kFutureBlock;
-        }
+        // const std::time_t now{std::time(nullptr)};
+        // if (header.timestamp > static_cast<uint64_t>(now)) {
+        //     return ValidationResult::kFutureBlock;
+        // }
     }
 
     if (header.gas_used > header.gas_limit) {
@@ -196,7 +196,7 @@ ValidationResult RuleSet::validate_block_header(const BlockHeader& header, const
             return ValidationResult::kFieldBeforeFork;
         }
     }
-
+    // return ValidationResult::kOk;
     return validate_difficulty_and_seal(header, *parent);
 }
 

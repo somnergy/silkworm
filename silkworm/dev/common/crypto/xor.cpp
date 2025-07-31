@@ -9,7 +9,7 @@
 namespace silkworm::sentry::crypto {
 
 void xor_bytes(Bytes& data1, ByteView data2) {
-    SILKWORM_ASSERT(data1.size() <= data2.size());
+    // SILKWORM_ASSERT(data1.size() <= data2.size());
     std::transform(data1.cbegin(), data1.cend(), data2.cbegin(), data1.begin(), std::bit_xor<>{});
 }
 

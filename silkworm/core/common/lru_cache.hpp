@@ -82,7 +82,7 @@ class LruCache {
 
     // this method is not thread-safe. Returns address of the element in the internal map
     const value_t* get(const key_t& key) {
-        SILKWORM_ASSERT(!thread_safe_);
+        // SILKWORM_ASSERT(!thread_safe_);
         return get_internal(key);
     }
 

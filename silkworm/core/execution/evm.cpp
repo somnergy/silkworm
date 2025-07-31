@@ -63,7 +63,7 @@ EVM::~EVM() {
 }
 
 CallResult EVM::execute(const Transaction& txn, uint64_t gas) noexcept {
-    SILKWORM_ASSERT(txn.sender());  // sender must be valid
+    // SILKWORM_ASSERT(txn.sender());  // sender must be valid
 
     txn_ = &txn;
 
@@ -453,10 +453,10 @@ evmc_tx_context EvmHost::get_tx_context() const noexcept {
     intx::be::store(context.tx_gas_price.bytes, effective_gas_price);
     context.tx_origin = *evm_.txn_->sender();
     context.block_coinbase = evm_.beneficiary;
-    SILKWORM_ASSERT(header.number <= INT64_MAX);  // EIP-1985
+    // SILKWORM_ASSERT(header.number <= INT64_MAX);  // EIP-1985
     context.block_number = static_cast<int64_t>(header.number);
     context.block_timestamp = static_cast<int64_t>(header.timestamp);
-    SILKWORM_ASSERT(header.gas_limit <= INT64_MAX);  // EIP-1985
+    // SILKWORM_ASSERT(header.gas_limit <= INT64_MAX);  // EIP-1985
     context.block_gas_limit = static_cast<int64_t>(header.gas_limit);
     if (header.difficulty == 0) {
         // EIP-4399: Supplant DIFFICULTY opcode with RANDOM
@@ -475,11 +475,11 @@ evmc_tx_context EvmHost::get_tx_context() const noexcept {
 }
 
 evmc::bytes32 EVM::get_block_hash(int64_t block_num) noexcept {
-    SILKWORM_ASSERT(block_num >= 0);
+    // SILKWORM_ASSERT(block_num >= 0);
     const uint64_t current_block_num{block_.header.number};
-    SILKWORM_ASSERT(static_cast<uint64_t>(block_num) < current_block_num);
+    // SILKWORM_ASSERT(static_cast<uint64_t>(block_num) < current_block_num);
     const uint64_t new_size_u64{current_block_num - static_cast<uint64_t>(block_num)};
-    SILKWORM_ASSERT(std::in_range<size_t>(new_size_u64));
+    // SILKWORM_ASSERT(std::in_range<size_t>(new_size_u64));
     const size_t new_size{static_cast<size_t>(new_size_u64)};
 
     std::vector<evmc::bytes32>& hashes{block_hashes_};

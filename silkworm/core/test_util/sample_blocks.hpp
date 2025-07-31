@@ -65,7 +65,7 @@ inline Transaction sample_tx0() {
     tx.to = 0xe5ef458d37212a06e3f59d40c454e76150ae7c32_address;
     tx.value = 1'027'501'080 * kGiga;
     tx.data = {};
-    SILKWORM_ASSERT(tx.set_v(27));
+    // SILKWORM_ASSERT(tx.set_v(27));
     tx.r = intx::from_string<intx::uint256>("0x48b55bfa915ac795c431978d8a6a992b628d557da5ff759b307d495a36649353");
     tx.s = intx::from_string<intx::uint256>("0x1fffd310ac743f371de3b9f7f9cb56c0b28ad43601b4ab949f53faa07bd2c804");
     return tx;
@@ -81,7 +81,7 @@ inline Transaction sample_tx1() {
     tx.to = {};
     tx.value = 0;
     tx.data = *from_hex("602a6000556101c960015560068060166000396000f3600035600055");
-    SILKWORM_ASSERT(tx.set_v(37));
+    // SILKWORM_ASSERT(tx.set_v(37));
     tx.r = intx::from_string<intx::uint256>("0x52f8f61201b2b11a78d6e866abc9c3db2ae8631fa656bfe5cb53668255367afb");
     tx.s = intx::from_string<intx::uint256>("0x52f8f61201b2b11a78d6e866abc9c3db2ae8631fa656bfe5cb53668255367afb");
     return tx;

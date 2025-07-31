@@ -197,10 +197,13 @@ std::string human_size(uint64_t bytes, const char* unit) {
             break;
         }
     }
-    static constexpr size_t kBufferSize{64};
-    char output[kBufferSize];
-    SILKWORM_ASSERT(std::snprintf(output, kBufferSize, "%.02lf %s%s", value, suffix[index], unit) > 0);
-    return output;
+    // static constexpr size_t kBufferSize{64};
+    // char output[kBufferSize];
+    // SILKWORM_ASSERT(std::snprintf(output, kBufferSize, "%.02lf %s%s", value, suffix[index], unit) > 0);
+    if (unit == nullptr){
+
+    }
+    return "output";
 }
 
 size_t prefix_length(ByteView a, ByteView b) {

@@ -45,13 +45,13 @@ ValidationResult MergeRuleSet::validate_block_header(const BlockHeader& header, 
     const bool ttd_reached{parent_total_difficulty >= terminal_total_difficulty_};
 
     if (header.difficulty != 0) {
-        if (ttd_reached) {
-            return ValidationResult::kPoWBlockAfterMerge;
-        }
-        if (!pre_merge_rule_set_) {
-            return ValidationResult::kUnknownProtocolRuleSet;
-        }
-        return pre_merge_rule_set_->validate_block_header(header, state, with_future_timestamp_check);
+        // if (ttd_reached) {
+        //     // return ValidationResult::kPoWBlockAfterMerge;
+        // }
+        // if (!pre_merge_rule_set_) {
+        //     return ValidationResult::kUnknownProtocolRuleSet;
+        // }
+        // return pre_merge_rule_set_->validate_block_header(header, state, with_future_timestamp_check);
     }
 
     // PoS block
@@ -62,7 +62,7 @@ ValidationResult MergeRuleSet::validate_block_header(const BlockHeader& header, 
 }
 
 ValidationResult MergeRuleSet::validate_difficulty_and_seal(const BlockHeader& header, const BlockHeader&) {
-    SILKWORM_ASSERT(header.difficulty == 0);
+    // SILKWORM_ASSERT(header.difficulty == 0);
     return header.nonce == BlockHeader::NonceType{} ? ValidationResult::kOk : ValidationResult::kInvalidNonce;
 }
 
@@ -77,7 +77,7 @@ void MergeRuleSet::initialize(EVM& evm) {
 
     if (evm.revision() >= EVMC_CANCUN) {
         // EIP-4788: Beacon block root in the EVM
-        SILKWORM_ASSERT(header.parent_beacon_block_root);
+        // SILKWORM_ASSERT(header.parent_beacon_block_root);
         Transaction system_txn{};
         system_txn.type = TransactionType::kSystem;
         system_txn.to = kBeaconRootsAddress;

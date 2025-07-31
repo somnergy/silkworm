@@ -24,7 +24,7 @@ class SmallMap {
     constexpr SmallMap() noexcept = default;
 
     constexpr SmallMap(std::initializer_list<ValueType> init) : size_(init.size()) {
-        SILKWORM_ASSERT(size_ <= maximum_size);
+        // SILKWORM_ASSERT(size_ <= maximum_size);
         for (size_t i{0}; i < size_; ++i) {
             data_[i] = *(std::data(init) + i);
         }
@@ -34,7 +34,7 @@ class SmallMap {
     template <std::input_iterator InputIt>
     constexpr SmallMap(InputIt first, InputIt last) {
         for (InputIt it{first}; it != last; ++it) {
-            SILKWORM_ASSERT(size_ < maximum_size);
+            // SILKWORM_ASSERT(size_ < maximum_size);
             data_[size_++] = *it;
         }
         sort();

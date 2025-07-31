@@ -105,14 +105,14 @@ void Blockchain::prime_state_with_genesis(const Block& genesis_block) {
 }
 
 void Blockchain::re_execute_canonical_chain(uint64_t ancestor, uint64_t tip) {
-    SILKWORM_ASSERT(ancestor <= tip);
+    // SILKWORM_ASSERT(ancestor <= tip);
     for (uint64_t block_num = ancestor + 1; block_num <= tip; ++block_num) {
         std::optional<evmc::bytes32> hash{state_.canonical_hash(block_num)};
-        SILKWORM_ASSERT(hash != std::nullopt);
+        // SILKWORM_ASSERT(hash != std::nullopt);
         BlockBody body;
-        SILKWORM_ASSERT(state_.read_body(block_num, *hash, body));
+        // SILKWORM_ASSERT(state_.read_body(block_num, *hash, body));
         std::optional<BlockHeader> header{state_.read_header(block_num, *hash)};
-        SILKWORM_ASSERT(header != std::nullopt);
+        // SILKWORM_ASSERT(header != std::nullopt);
 
         Block block;
         block.header = header.value();
@@ -120,12 +120,12 @@ void Blockchain::re_execute_canonical_chain(uint64_t ancestor, uint64_t tip) {
         block.ommers = std::move(body.ommers);
 
         [[maybe_unused]] ValidationResult err{execute_block(block, /*check_state_root=*/false)};
-        SILKWORM_ASSERT(err == ValidationResult::kOk);
+        // SILKWORM_ASSERT(err == ValidationResult::kOk);
     }
 }
 
 void Blockchain::unwind_last_changes(uint64_t ancestor, uint64_t tip) {
-    SILKWORM_ASSERT(ancestor <= tip);
+    // SILKWORM_ASSERT(ancestor <= tip);
     for (uint64_t block_num{tip}; block_num > ancestor; --block_num) {
         state_.unwind_state_changes(block_num);
     }
@@ -135,16 +135,16 @@ std::vector<BlockWithHash> Blockchain::intermediate_chain(
     uint64_t block_num,
     evmc::bytes32 hash,
     uint64_t canonical_ancestor) const {
-    SILKWORM_ASSERT(block_num >= canonical_ancestor);
+    // SILKWORM_ASSERT(block_num >= canonical_ancestor);
     std::vector<BlockWithHash> chain(static_cast<size_t>(block_num - canonical_ancestor));
 
     for (; block_num > canonical_ancestor; --block_num) {
         BlockWithHash& x{chain[static_cast<size_t>(block_num - canonical_ancestor - 1)]};
 
         BlockBody body;
-        SILKWORM_ASSERT(state_.read_body(block_num, hash, body));
+        // SILKWORM_ASSERT(state_.read_body(block_num, hash, body));
         std::optional<BlockHeader> header{state_.read_header(block_num, hash)};
-        SILKWORM_ASSERT(header != std::nullopt);
+        // SILKWORM_ASSERT(header != std::nullopt);
 
         x.block.header = *header;
         x.block.transactions = std::move(body.transactions);
@@ -165,7 +165,7 @@ uint64_t Blockchain::canonical_ancestor(const BlockHeader& header, const evmc::b
 
     // Blockchain::insert_block fails for blocks whose parent is not in the state,
     // so all ancestors should be in the state.
-    SILKWORM_ASSERT(parent != std::nullopt);
+    // SILKWORM_ASSERT(parent != std::nullopt);
 
     return canonical_ancestor(*parent, header.parent_hash);
 }

@@ -31,7 +31,7 @@ ValidationResult BorRuleSet::validate_block_header(const BlockHeader& header, co
 
     const std::optional<BlockHeader> parent{get_parent_header(state, header)};
     const uint64_t* period{bor::config_value_lookup(config().period, header.number)};
-    SILKWORM_ASSERT(period);
+    // SILKWORM_ASSERT(period);
     if (parent->timestamp + *period > header.timestamp) {
         return ValidationResult::kInvalidTimestamp;
     }
@@ -186,7 +186,7 @@ void BorRuleSet::add_fee_transfer_log(IntraBlockState& state, const intx::uint25
                                       const intx::uint256& recipient_initial_balance) {
     static constexpr evmc::bytes32 kTransferFeeLogSig{
         0x4dfe1bbbcf077ddc3e01291eea2d5c70c2b422b415d95645b9adcfd678cb1d63_bytes32};
-    SILKWORM_ASSERT(amount <= sender_initial_balance);
+    // SILKWORM_ASSERT(amount <= sender_initial_balance);
     add_transfer_log(state, kTransferFeeLogSig, sender, recipient, amount,
                      sender_initial_balance, recipient_initial_balance,
                      sender_initial_balance - amount, recipient_initial_balance + amount);

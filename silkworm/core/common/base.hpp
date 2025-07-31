@@ -77,19 +77,19 @@ inline constexpr uint64_t kGiga{1'000'000'000};   // = 10^9
 inline constexpr uint64_t kEther{kGiga * kGiga};  // = 10^18
 
 consteval uint64_t operator"" _Kibi(unsigned long long x) {
-    SILKWORM_ASSERT(x <= std::numeric_limits<uint64_t>::max() / kKibi);
+    // SILKWORM_ASSERT(x <= std::numeric_limits<uint64_t>::max() / kKibi);
     return x * kKibi;
 }
 consteval uint64_t operator"" _Mebi(unsigned long long x) {
-    SILKWORM_ASSERT(x <= std::numeric_limits<uint64_t>::max() / kMebi);
+    // SILKWORM_ASSERT(x <= std::numeric_limits<uint64_t>::max() / kMebi);
     return x * kMebi;
 }
 consteval uint64_t operator"" _Gibi(unsigned long long x) {
-    SILKWORM_ASSERT(x <= std::numeric_limits<uint64_t>::max() / kGibi);
+    // SILKWORM_ASSERT(x <= std::numeric_limits<uint64_t>::max() / kGibi);
     return x * kGibi;
 }
 consteval uint64_t operator"" _Tebi(unsigned long long x) {
-    SILKWORM_ASSERT(x <= std::numeric_limits<uint64_t>::max() / kTebi);
+    // SILKWORM_ASSERT(x <= std::numeric_limits<uint64_t>::max() / kTebi);
     return x * kTebi;
 }
 

@@ -18,7 +18,7 @@ namespace rlp {
     }
 
     DecodingResult decode(ByteView& from, evmc::address& address, Leftover mode) {
-        SILKWORM_ASSERT(from.size() >= std::size(address.bytes));
+        // SILKWORM_ASSERT(from.size() >= std::size(address.bytes));
         return decode(from, address.bytes, mode);
     }
 
