@@ -379,16 +379,18 @@ void StateTransition::run() {
             }
             // Receipt receipt;
 
-            // const evmc_revision rev{config.revision(block.header.number, block.header.timestamp)};
+            const evmc_revision rev{config.revision(block.header.number, block.header.timestamp)};
 
-            // auto pre_block_validation = rule_set->pre_validate_block_body(block, state);
-            // auto block_validation = rule_set->validate_block_header(block.header, state, true);
-            // auto pre_txn_validation = protocol::pre_validate_transaction(txn, rev, config.chain_id, block.header.base_fee_per_gas, block.header.blob_gas_price());
+            auto pre_block_validation = rule_set->pre_validate_block_body(block, state);
+            auto block_validation = rule_set->validate_block_header(block.header, state, true);
+            auto pre_txn_validation = protocol::pre_validate_transaction(txn, rev, config.chain_id, block.header.base_fee_per_gas, block.header.blob_gas_price());
             // auto txn_validation = protocol::validate_transaction(txn, processor.evm().state(), processor.available_gas());
 
-            // if (txn_validation == ValidationResult::kOk) {
+            if (pre_block_validation == ValidationResult::kOk&&
+                block_validation == ValidationResult::kOk &&
+                pre_txn_validation == ValidationResult::kOk) {
 
-            // }
+            }
 
             // if (pre_block_validation == ValidationResult::kOk &&
             //     block_validation == ValidationResult::kOk &&
