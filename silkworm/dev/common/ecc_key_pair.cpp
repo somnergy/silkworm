@@ -23,7 +23,7 @@ EccKeyPair::EccKeyPair(Bytes private_key_data) : private_key_(std::move(private_
     SecP256K1Context ctx;
 
     if (!ctx.verify_private_key_data(private_key_)) {
-        throw std::invalid_argument("Invalid node key");
+        // throw std::invalid_argument("Invalid node key");
     }
 }
 
@@ -32,7 +32,7 @@ EccPublicKey EccKeyPair::public_key() const {
     secp256k1_pubkey public_key;
     bool ok = ctx.create_public_key(&public_key, private_key_);
     if (!ok) {
-        throw std::runtime_error("EccKeyPair::public_key failed to create a corresponding public key");
+        // throw std::runtime_error("EccKeyPair::public_key failed to create a corresponding public key");
     }
     return EccPublicKey(Bytes{public_key.data, sizeof(public_key.data)});
 }

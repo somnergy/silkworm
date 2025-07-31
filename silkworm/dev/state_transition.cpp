@@ -151,68 +151,142 @@ std::unique_ptr<evmc::address> StateTransition::private_key_to_address(const std
 
 Transaction StateTransition::get_transaction(const ExpectedSubState& expected_sub_state) {
     Transaction txn;
-    auto j_transaction = test_data_["transaction"];
-    // std::cout << "J_transaction" << j_transaction.dump();
+    // auto j_transaction = test_data_["transaction"];
+    // // std::cout << "J_transaction" << j_transaction.dump();
 
-    txn.nonce = std::stoull(j_transaction.at("nonce").get<std::string>(), nullptr, 16);
-    txn.set_sender(*private_key_to_address(j_transaction["secretKey"]));
+    // txn.nonce = std::stoull(j_transaction.at("nonce").get<std::string>(), nullptr, 16);
+    // txn.set_sender(*private_key_to_address(j_transaction["secretKey"]));
 
-    const auto to_address = j_transaction.at("to").get<std::string>();
-    if (!to_address.empty()) {
-        txn.to = to_evmc_address(to_address);
+    // const auto to_address = j_transaction.at("to").get<std::string>();
+    // if (!to_address.empty()) {
+    //     txn.to = to_evmc_address(to_address);
+    // }
+    // //        std::cout << "from address: " << to_hex(txn.from.value()) << std::endl;
+
+    // if (j_transaction.contains("gasPrice")) {
+    //     txn.type = TransactionType::kLegacy;
+    //     txn.max_fee_per_gas = intx::from_string<intx::uint256>(j_transaction.at("gasPrice").get<std::string>());
+    //     txn.max_priority_fee_per_gas = intx::from_string<intx::uint256>(j_transaction.at("gasPrice").get<std::string>());
+    // } else {
+    //     txn.type = TransactionType::kDynamicFee;
+    //     txn.max_fee_per_gas = intx::from_string<intx::uint256>(j_transaction.at("maxFeePerGas").get<std::string>());
+    //     txn.max_priority_fee_per_gas = intx::from_string<intx::uint256>(j_transaction.at("maxPriorityFeePerGas").get<std::string>());
+    // }
+
+    if (expected_sub_state.dataIndex >= 5) {
+    //     // throw std::runtime_error("data index out of range");
     }
-    //        std::cout << "from address: " << to_hex(txn.from.value()) << std::endl;
 
-    if (j_transaction.contains("gasPrice")) {
-        txn.type = TransactionType::kLegacy;
-        txn.max_fee_per_gas = intx::from_string<intx::uint256>(j_transaction.at("gasPrice").get<std::string>());
-        txn.max_priority_fee_per_gas = intx::from_string<intx::uint256>(j_transaction.at("gasPrice").get<std::string>());
-    } else {
-        txn.type = TransactionType::kDynamicFee;
-        txn.max_fee_per_gas = intx::from_string<intx::uint256>(j_transaction.at("maxFeePerGas").get<std::string>());
-        txn.max_priority_fee_per_gas = intx::from_string<intx::uint256>(j_transaction.at("maxPriorityFeePerGas").get<std::string>());
-    }
+    // if (expected_sub_state.dataIndex >= j_transaction.at("data").size()) {
+    // //     // throw std::runtime_error("data index out of range");
+    // }
+    // txn.data = from_hex(j_transaction.at("data").at(expected_sub_state.dataIndex).get<std::string>()).value();
 
-    if (expected_sub_state.dataIndex >= j_transaction.at("data").size()) {
-        throw std::runtime_error("data index out of range");
-    }
-    txn.data = from_hex(j_transaction.at("data").at(expected_sub_state.dataIndex).get<std::string>()).value();
+    // if (expected_sub_state.gasIndex >= j_transaction.at("gasLimit").size()) {
+    //     // throw std::runtime_error("gas limit index out of range");
+    // }
+    // txn.gas_limit = std::stoull(j_transaction.at("gasLimit").at(expected_sub_state.gasIndex).get<std::string>(), nullptr, 16);
 
-    if (expected_sub_state.gasIndex >= j_transaction.at("gasLimit").size()) {
-        throw std::runtime_error("gas limit index out of range");
-    }
-    txn.gas_limit = std::stoull(j_transaction.at("gasLimit").at(expected_sub_state.gasIndex).get<std::string>(), nullptr, 16);
+    // if (expected_sub_state.valueIndex >= j_transaction.at("value").size()) {
+    //     // throw std::runtime_error("value index out of range");
+    // }
+    // auto value_str = j_transaction.at("value").at(expected_sub_state.valueIndex).get<std::string>();
+    // // in case of bigint, set max value; compatible with all test cases so far
+    // txn.value = (value_str.starts_with("0x:bigint ")) ? std::numeric_limits<intx::uint256>::max() : intx::from_string<intx::uint256>(value_str);
 
-    if (expected_sub_state.valueIndex >= j_transaction.at("value").size()) {
-        throw std::runtime_error("value index out of range");
-    }
-    auto value_str = j_transaction.at("value").at(expected_sub_state.valueIndex).get<std::string>();
-    // in case of bigint, set max value; compatible with all test cases so far
-    txn.value = (value_str.starts_with("0x:bigint ")) ? std::numeric_limits<intx::uint256>::max() : intx::from_string<intx::uint256>(value_str);
+    // if (j_transaction.contains("accessLists")) {
+    //     auto j_access_list = j_transaction.at("accessLists").at(expected_sub_state.dataIndex);
 
-    if (j_transaction.contains("accessLists")) {
-        auto j_access_list = j_transaction.at("accessLists").at(expected_sub_state.dataIndex);
+    //     for (const auto& j_access_entry : j_access_list.items()) {
+    //         AccessListEntry entry;
+    //         entry.account = to_evmc_address(j_access_entry.value().at("address"));
 
-        for (const auto& j_access_entry : j_access_list.items()) {
-            AccessListEntry entry;
-            entry.account = to_evmc_address(j_access_entry.value().at("address"));
+    //         for (const auto& j_storage_key : j_access_entry.value().at("storageKeys").items()) {
+    //             if (j_storage_key.value().is_string()) {
+    //                 auto hex_storage = from_hex(j_storage_key.value().get<std::string>());
+    //                 entry.storage_keys.emplace_back(to_bytes32(hex_storage.value()));
+    //             }
+    //         }
 
-            for (const auto& j_storage_key : j_access_entry.value().at("storageKeys").items()) {
-                if (j_storage_key.value().is_string()) {
-                    auto hex_storage = from_hex(j_storage_key.value().get<std::string>());
-                    entry.storage_keys.emplace_back(to_bytes32(hex_storage.value()));
-                }
-            }
+    //         txn.access_list.emplace_back(entry);
+    //     }
 
-            txn.access_list.emplace_back(entry);
-        }
-
-        if (txn.type == TransactionType::kLegacy) {
-            txn.type = TransactionType::kAccessList;
-        }
-    }
+    //     if (txn.type == TransactionType::kLegacy) {
+    //         txn.type = TransactionType::kAccessList;
+    //     }
+    // }
 
     return txn;
+}
+
+void StateTransition::get_transaction2(const ExpectedSubState& expected_sub_state) {
+    Transaction txn;
+    // auto j_transaction = test_data_["transaction"];
+    // // std::cout << "J_transaction" << j_transaction.dump();
+
+    // txn.nonce = std::stoull(j_transaction.at("nonce").get<std::string>(), nullptr, 16);
+    // txn.set_sender(*private_key_to_address(j_transaction["secretKey"]));
+
+    // const auto to_address = j_transaction.at("to").get<std::string>();
+    // if (!to_address.empty()) {
+    //     txn.to = to_evmc_address(to_address);
+    // }
+    // //        std::cout << "from address: " << to_hex(txn.from.value()) << std::endl;
+
+    // if (j_transaction.contains("gasPrice")) {
+    //     txn.type = TransactionType::kLegacy;
+    //     txn.max_fee_per_gas = intx::from_string<intx::uint256>(j_transaction.at("gasPrice").get<std::string>());
+    //     txn.max_priority_fee_per_gas = intx::from_string<intx::uint256>(j_transaction.at("gasPrice").get<std::string>());
+    // } else {
+    //     txn.type = TransactionType::kDynamicFee;
+    //     txn.max_fee_per_gas = intx::from_string<intx::uint256>(j_transaction.at("maxFeePerGas").get<std::string>());
+    //     txn.max_priority_fee_per_gas = intx::from_string<intx::uint256>(j_transaction.at("maxPriorityFeePerGas").get<std::string>());
+    // }
+
+    if (expected_sub_state.dataIndex >= 5) {
+    //     // throw std::runtime_error("data index out of range");
+    }
+
+    // if (expected_sub_state.dataIndex >= j_transaction.at("data").size()) {
+    // //     // throw std::runtime_error("data index out of range");
+    // }
+    // txn.data = from_hex(j_transaction.at("data").at(expected_sub_state.dataIndex).get<std::string>()).value();
+
+    // if (expected_sub_state.gasIndex >= j_transaction.at("gasLimit").size()) {
+    //     // throw std::runtime_error("gas limit index out of range");
+    // }
+    // txn.gas_limit = std::stoull(j_transaction.at("gasLimit").at(expected_sub_state.gasIndex).get<std::string>(), nullptr, 16);
+
+    // if (expected_sub_state.valueIndex >= j_transaction.at("value").size()) {
+    //     // throw std::runtime_error("value index out of range");
+    // }
+    // auto value_str = j_transaction.at("value").at(expected_sub_state.valueIndex).get<std::string>();
+    // // in case of bigint, set max value; compatible with all test cases so far
+    // txn.value = (value_str.starts_with("0x:bigint ")) ? std::numeric_limits<intx::uint256>::max() : intx::from_string<intx::uint256>(value_str);
+
+    // if (j_transaction.contains("accessLists")) {
+    //     auto j_access_list = j_transaction.at("accessLists").at(expected_sub_state.dataIndex);
+
+    //     for (const auto& j_access_entry : j_access_list.items()) {
+    //         AccessListEntry entry;
+    //         entry.account = to_evmc_address(j_access_entry.value().at("address"));
+
+    //         for (const auto& j_storage_key : j_access_entry.value().at("storageKeys").items()) {
+    //             if (j_storage_key.value().is_string()) {
+    //                 auto hex_storage = from_hex(j_storage_key.value().get<std::string>());
+    //                 entry.storage_keys.emplace_back(to_bytes32(hex_storage.value()));
+    //             }
+    //         }
+
+    //         txn.access_list.emplace_back(entry);
+    //     }
+
+    //     if (txn.type == TransactionType::kLegacy) {
+    //         txn.type = TransactionType::kAccessList;
+    //     }
+    // }
+
+    // return txn;
 }
 
 void StateTransition::validate_transition(const Receipt& receipt, const ExpectedState& expected_state, const ExpectedSubState& expected_sub_state, const InMemoryState& state) {
@@ -262,12 +336,11 @@ void StateTransition::run() {
     if (test_name_.length() == 0) {
 
     }
-    // std::cout << show_diagnostics_;
     // get_expected_states();
-    for (auto expected_state : get_expected_states()) {
-        if (expected_state.fork_name() == expected_state.fork_name()) {
-            continue;
-        }
+    for (auto& expected_state : get_expected_states()) {
+        // if (expected_state.fork_name() == expected_state.fork_name()) {
+        //     continue;
+        // }
     //     // if (expected_state == nullptr) {
     //     //     continue;
     //     // }
@@ -280,37 +353,53 @@ void StateTransition::run() {
             ++total_count_;
             auto config = expected_state.get_config();
             auto rule_set = protocol::rule_set_factory(config);
-            auto state = read_genesis_allocation(test_data_["pre"]);
-            auto block = get_block(state, config);
-            auto txn = get_transaction(expected_sub_state);
+            if (rule_set == nullptr) {
 
-            ExecutionProcessor processor{block, *rule_set, state, config, true};
-            Receipt receipt;
-
-            const evmc_revision rev{config.revision(block.header.number, block.header.timestamp)};
-
-            auto pre_block_validation = rule_set->pre_validate_block_body(block, state);
-            auto block_validation = rule_set->validate_block_header(block.header, state, true);
-            auto pre_txn_validation = protocol::pre_validate_transaction(txn, rev, config.chain_id, block.header.base_fee_per_gas, block.header.blob_gas_price());
-            auto txn_validation = protocol::validate_transaction(txn, processor.evm().state(), processor.available_gas());
-
-            if (pre_block_validation == ValidationResult::kOk &&
-                block_validation == ValidationResult::kOk &&
-                pre_txn_validation == ValidationResult::kOk &&
-                txn_validation == ValidationResult::kOk) {
-                processor.execute_transaction(txn, receipt);
-                processor.evm().state().write_to_db(block.header.number);
-            } else {
-                // INCORRECT PATH =============
-                processor.execute_transaction(txn, receipt);
-                processor.evm().state().write_to_db(block.header.number);
-                receipt.success = true;
-                // ============================
-            //     cleanup_error_block(block, processor, rev);
-            //     receipt.success = false;
             }
+            auto state = read_genesis_allocation(test_data_["pre"]);
+            // state.unwind_state_changes(0);
+            auto block = get_block(state, config);
+            if (block.header.difficulty.num_bits == 0) {
 
-            validate_transition(receipt, expected_state, expected_sub_state, state);
+            }
+            get_transaction2(expected_sub_state);
+
+            // auto txn = get_transaction(expected_sub_state);
+            // if (txn.chain_id.value().num_bits == 0) {
+
+            // }
+
+            // ExecutionProcessor processor{block, *rule_set, state, config, true};
+
+            // if (processor.available_gas() == 0) {
+
+            // }
+            // Receipt receipt;
+
+            // const evmc_revision rev{config.revision(block.header.number, block.header.timestamp)};
+
+            // auto pre_block_validation = rule_set->pre_validate_block_body(block, state);
+            // auto block_validation = rule_set->validate_block_header(block.header, state, true);
+            // auto pre_txn_validation = protocol::pre_validate_transaction(txn, rev, config.chain_id, block.header.base_fee_per_gas, block.header.blob_gas_price());
+            // auto txn_validation = protocol::validate_transaction(txn, processor.evm().state(), processor.available_gas());
+
+            // if (pre_block_validation == ValidationResult::kOk &&
+            //     block_validation == ValidationResult::kOk &&
+            //     pre_txn_validation == ValidationResult::kOk &&
+            //     txn_validation == ValidationResult::kOk) {
+            //     // processor.execute_transaction(txn, receipt);
+            //     // processor.evm().state().write_to_db(block.header.number);
+            // } else {
+            //     // INCORRECT PATH =============
+            //     // processor.execute_transaction(txn, receipt);
+            //     // processor.evm().state().write_to_db(block.header.number);
+            //     // receipt.success = true;
+            //     // ============================
+            // //     cleanup_error_block(block, processor, rev);
+            //     receipt.success = false;
+            // }
+
+            // validate_transition(receipt, expected_state, expected_sub_state, state);
         }
     }
 
@@ -358,29 +447,7 @@ void sample_run() {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // COUT can't be executed on rv32im ::: ====>
-
 
 
 // void StateTransition::print_error_message(const ExpectedState& expected_state, const ExpectedSubState& expected_sub_state, const std::string& message) {

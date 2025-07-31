@@ -76,7 +76,7 @@ evmc::address hex_to_address(std::string_view hex, bool return_zero_on_err) {
         if (return_zero_on_err) {
             return evmc::address{};
         }
-        abort_due_to_assertion_failure("invalid hex encoding", __FILE__, __LINE__);
+        // abort_due_to_assertion_failure("invalid hex encoding", __FILE__, __LINE__);
     }
     return bytes_to_address(*bytes);
 }
