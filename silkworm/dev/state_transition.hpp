@@ -41,11 +41,10 @@ class StateTransition {
     Block get_block(InMemoryState& state, ChainConfig& chain_config);
     std::unique_ptr<InMemoryState> get_state();
     static std::unique_ptr<evmc::address> private_key_to_address(const std::string& private_key);
+    std::unique_ptr<evmc::address> sender_to_address(const std::string& sender);
     Transaction get_transaction(const ExpectedSubState& expected_sub_state);
     void validate_transition(const Receipt& receipt, const ExpectedState& expected_state, const ExpectedSubState& expected_sub_state, const InMemoryState& state);
     void run();
-    Transaction2 get_transaction2(const ExpectedSubState& expected_sub_state);
-
   };
 void sample_run();
 
