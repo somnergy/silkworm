@@ -183,13 +183,13 @@ void ExecutionProcessor::execute_transaction(const Transaction& txn, Receipt& re
 
     // // Prepare the receipt using the result from evmone.
     receipt.type = txn.type;
-    // receipt.success = evm1_receipt.status == EVMC_SUCCESS;
-    // receipt.cumulative_gas_used = cumulative_gas_used_;
-    // receipt.logs.clear();  // can be dirty
-    // receipt.logs.reserve(evm1_receipt.logs.size());
-    // for (auto& [addr, data, topics] : evm1_receipt.logs)
-    //     receipt.logs.emplace_back(Log{addr, std::move(topics), std::move(data)});
-    // receipt.bloom = logs_bloom(receipt.logs);
+    receipt.success = evm1_receipt.status == EVMC_SUCCESS;
+    receipt.cumulative_gas_used = cumulative_gas_used_;
+    receipt.logs.clear();  // can be dirty
+    receipt.logs.reserve(evm1_receipt.logs.size());
+    for (auto& [addr, data, topics] : evm1_receipt.logs)
+        receipt.logs.emplace_back(Log{addr, std::move(topics), std::move(data)});
+    receipt.bloom = logs_bloom(receipt.logs);
 
     // if (evm1_v2_) {
     //     // Apply the state diff produced by evmone APIv2 to the state and skip the Silkworm execution.

@@ -351,10 +351,10 @@ void StateTransition::run() {
                 // INCORRECT PATH =============
                 // processor.execute_transaction(txn, receipt);
                 // processor.evm().state().write_to_db(block.header.number);
-                receipt.success = true;
+                // receipt.success = true;
                 // ============================
                 // cleanup_error_block(block, processor, rev);
-                // receipt.success = false;
+                receipt.success = false;
             }
 
             // validate_transition(receipt, expected_state, expected_sub_state, state);
