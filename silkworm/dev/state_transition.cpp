@@ -317,47 +317,47 @@ void StateTransition::run() {
             }
             Receipt receipt;
 
-            // const evmc_revision rev{config.revision(block.header.number, block.header.timestamp)};
+            const evmc_revision rev{config.revision(block.header.number, block.header.timestamp)};
 
-            // auto pre_block_validation = rule_set->pre_validate_block_body(block, state);
+            auto pre_block_validation = rule_set->pre_validate_block_body(block, state);
             auto block_validation = rule_set->validate_block_header(block.header, state, true);
             // auto block_validation = ValidationResult::kOk;
-            // auto pre_txn_validation = protocol::pre_validate_transaction(txn, rev, config.chain_id, block.header.base_fee_per_gas, block.header.blob_gas_price());
-            // auto txn_validation = protocol::validate_transaction(txn, processor.evm().state(), processor.available_gas());
+            auto pre_txn_validation = protocol::pre_validate_transaction(txn, rev, config.chain_id, block.header.base_fee_per_gas, block.header.blob_gas_price());
+            auto txn_validation = protocol::validate_transaction(txn, processor.evm().state(), processor.available_gas());
 
-            // // if (pre_block_validation == ValidationResult::kOk&&
-            // //     block_validation == ValidationResult::kOk &&
-            // //     pre_txn_validation == ValidationResult::kOk&&
-            // //     txn_validation == ValidationResult::kOk) {
+            if (pre_block_validation == ValidationResult::kOk&&
+                block_validation == ValidationResult::kOk &&
+                pre_txn_validation == ValidationResult::kOk&&
+                txn_validation == ValidationResult::kOk) {
 
-            // // }
+            // }
 
-            if (
+            // if (
                 // pre_block_validation == ValidationResult::kOk 
                 // &&
 
                 // COMING OUT FALSE ====
-                block_validation == ValidationResult::kOk 
+                // block_validation == ValidationResult::kOk 
                 //  ======================
                 // &&
                 // pre_txn_validation == ValidationResult::kOk 
                 // &&
                 // txn_validation == ValidationResult::kOk
-                ) 
-            {
+                // ) 
+            // {
                 processor.execute_transaction(txn, receipt);
-                // processor.evm().state().write_to_db(block.header.number);
+                processor.evm().state().write_to_db(block.header.number);
             } else {
                 // INCORRECT PATH =============
                 // processor.execute_transaction(txn, receipt);
                 // processor.evm().state().write_to_db(block.header.number);
                 // receipt.success = true;
                 // ============================
-                // cleanup_error_block(block, processor, rev);
+                cleanup_error_block(block, processor, rev);
                 receipt.success = false;
             }
 
-            // validate_transition(receipt, expected_state, expected_sub_state, state);
+            validate_transition(receipt, expected_state, expected_sub_state, state);
         }
     }
 
@@ -373,33 +373,6 @@ void sample_run() {
     auto state_transition = StateTransition(json_str, false, true);
     // state_transition.run();
 }
-
-
-    // Dog::Dog(const bool terminate_on_error, const bool show_diagnostics) noexcept
-    //     : terminate_on_error_{terminate_on_error},
-    //     show_diagnostics_{show_diagnostics} {
-    // }
-
-    // Dog::Dog(const std::string& file_path) noexcept {
-    //         if (file_path.length() == 0) {
-            
-    //         }
-    // }
-    // Dog::Dog(const std::string& json_str, bool terminate_on_error, bool show_diagnostics) noexcept 
-    //         : terminate_on_error_{terminate_on_error},
-    //     show_diagnostics_{show_diagnostics} {
-    //         if (json_str.length() == 0) {
-
-    //         }
-    // }
-    // int Dog::getLives() {
-    //     return lives;
-    // }
-    // void Dog::doStuff() {
-    //     if (show_diagnostics_) {
-    //         test_name_  = "moha";
-    //     }
-    // }
 
 }  // namespace silkworm::cmd::state_transition
 

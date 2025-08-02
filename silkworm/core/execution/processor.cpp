@@ -277,11 +277,6 @@ void ExecutionProcessor::execute_transaction(const Transaction& txn, Receipt& re
     state_.finalize_transaction(rev);
 
     check_evm1_execution_result(evm1_receipt.state_diff, state_);
-
-    if (txn.nonce > 133 || receipt.success) {
-        evmone::state::TransactionReceipt trr;
-        check_evm1_execution_result(trr.state_diff, state_);
-    }
 }
 
 CallResult ExecutionProcessor::call(const Transaction& txn, const std::vector<std::shared_ptr<EvmTracer>>& tracers, bool refund) noexcept {
