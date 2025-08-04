@@ -29,6 +29,4 @@
 	path = third_party/execution-apis
 	url = https://github.com/ethereum/execution-apis.git
 	branch = main
-[submodule "BlockchainTests"]
-	path = third_party/eest-fixtures/BlockchainTests
-	url = https://github.com/erigontech/eest-fixtures
+
