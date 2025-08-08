@@ -275,48 +275,21 @@ void cleanup_error_block(Block& block, ExecutionProcessor& processor, const evmc
 void StateTransition::run() {
     failed_count_ = 0;
     total_count_ = 0;
-    if (test_name_.length() == 0) {
-
-    }
-    // get_expected_states();
     for (auto& expected_state : get_expected_states()) {
-        // if (expected_state.fork_name() == expected_state.fork_name()) {
-        //     continue;
-        // }
-    //     // if (expected_state == nullptr) {
-    //     //     continue;
-    //     // }
         for (const auto& expected_sub_state : expected_state.get_sub_states()) {
-
-            if (expected_sub_state.exceptionExpected) {
-
-            }
 
             ++total_count_;
             auto config = expected_state.get_config();
             auto rule_set = protocol::rule_set_factory(config);
-            // if (rule_set == nullptr) {
-            //     break;
-            // }
             auto state = read_genesis_allocation(test_data_["pre"]);
-            // state.unwind_state_changes(0);
             auto block = get_block(state, config);
             if (block.header.difficulty.num_bits == 0) {
 
             }
             auto txn = get_transaction(expected_sub_state);
-            if (txn.nonce == 1) {
-
-            }
 
             ExecutionProcessor processor{block, *rule_set, state, config, true};
-
-            // if (processor.available_gas() == 1) {
-
-            // }
-            
             if (processor.evm().vm().get_raw_pointer() == nullptr) {
-                // // if (processor.evm().vm_impl().execute == nullptr) {
                     return;
             }
                 
