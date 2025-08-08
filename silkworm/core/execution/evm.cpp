@@ -21,42 +21,37 @@
 
 namespace silkworm {
 
-class DelegatingTracer : public evmone::Tracer {
-  public:
-    explicit DelegatingTracer(EvmTracer& tracer, IntraBlockState& intra_block_state) noexcept
-        : tracer_(tracer), intra_block_state_(intra_block_state) {}
+// class DelegatingTracer : public evmone::Tracer {
+//   public:
+//     explicit DelegatingTracer(EvmTracer& tracer, IntraBlockState& intra_block_state) noexcept
+//         : tracer_(tracer), intra_block_state_(intra_block_state) {}
 
-  private:
-    void on_execution_start(evmc_revision rev, const evmc_message& msg, evmone::bytes_view code) noexcept override {
-        tracer_.on_execution_start(rev, msg, code);
-    }
+//   private:
+//     void on_execution_start(evmc_revision rev, const evmc_message& msg, evmone::bytes_view code) noexcept override {
+//         tracer_.on_execution_start(rev, msg, code);
+//     }
 
-    void on_instruction_start(uint32_t pc, const intx::uint256* stack_top, int stack_height,
-                              int64_t gas, const evmone::ExecutionState& state) noexcept override {
-        tracer_.on_instruction_start(pc, stack_top, stack_height, gas, state, intra_block_state_);
-    }
+//     void on_instruction_start(uint32_t pc, const intx::uint256* stack_top, int stack_height,
+//                               int64_t gas, const evmone::ExecutionState& state) noexcept override {
+//         tracer_.on_instruction_start(pc, stack_top, stack_height, gas, state, intra_block_state_);
+//     }
 
-    void on_execution_end(const evmc_result& result) noexcept override {
-        tracer_.on_execution_end(result, intra_block_state_);
-    }
+//     void on_execution_end(const evmc_result& result) noexcept override {
+//         tracer_.on_execution_end(result, intra_block_state_);
+//     }
 
-    friend class EVM;
+//     friend class EVM;
 
-    EvmTracer& tracer_;
-    IntraBlockState& intra_block_state_;
-};
-
-// #ifdef __wasm__
-evmc::VM EVM::evm1_{evmc_create_evmone()};  // we cannot use SILKWORM_THREAD_LOCAL i.e. static in WASM (duplicate-decl-specifier)
-// #else
-// SILKWORM_THREAD_LOCAL evmc::VM EVM::evm1_{evmc_create_evmone()};
-// #endif  // __wasm__
+//     EvmTracer& tracer_;
+//     IntraBlockState& intra_block_state_;
+// };
 
 EVM::EVM(const Block& block, IntraBlockState& state, const ChainConfig& config) noexcept
     : beneficiary{block.header.beneficiary},
       block_{block},
       state_{state},
-      config_{config} {}
+      config_{config},
+      evm1_{new evmone::VM{}} {}
 
 EVM::~EVM() {
     vm_impl().remove_tracers();
@@ -96,9 +91,9 @@ evmc::Result EVM::create(const evmc_message& message) noexcept {
     if (!bailout && owned_funds < value) {
         res.status_code = EVMC_INSUFFICIENT_BALANCE;
 
-        for (auto tracer : tracers_) {
-            tracer.get().on_pre_check_failed(res.raw(), message);
-        }
+        // for (auto tracer : tracers_) {
+        //     tracer.get().on_pre_check_failed(res.raw(), message);
+        // }
 
         return res;
     }
@@ -109,9 +104,9 @@ evmc::Result EVM::create(const evmc_message& message) noexcept {
         // See also https://github.com/ethereum/go-ethereum/blob/v1.10.13/core/vm/evm.go#L426
         res.status_code = EVMC_ARGUMENT_OUT_OF_RANGE;
 
-        for (auto tracer : tracers_) {
-            tracer.get().on_pre_check_failed(res.raw(), message);
-        }
+        // for (auto tracer : tracers_) {
+        //     tracer.get().on_pre_check_failed(res.raw(), message);
+        // }
         return res;
     }
     state_.set_nonce(message.sender, nonce + 1);
@@ -186,9 +181,9 @@ evmc::Result EVM::create(const evmc_message& message) noexcept {
     }
 
     // Explicitly notify registered tracers (if any) because evmc_result has been changed post execute
-    for (auto tracer : tracers_) {
-        tracer.get().on_creation_completed(evm_res, state_);
-    }
+    // for (auto tracer : tracers_) {
+    //     tracer.get().on_creation_completed(evm_res, state_);
+    // }
 
     return evmc::Result{evm_res};
 }
@@ -237,15 +232,15 @@ evmc::Result EVM::call(const evmc_message& message) noexcept {
             }
         }
         // Explicitly notify registered tracers (if any)
-        for (auto tracer : tracers_) {
-            const ByteView empty_code{};  // Any precompile code is empty
-            tracer.get().on_execution_start(rev, message, empty_code);
-            tracer.get().on_precompiled_run(res.raw(), state_);
-            tracer.get().on_execution_end(res.raw(), state_);
-        }
+        // for (auto tracer : tracers_) {
+        //     const ByteView empty_code{};  // Any precompile code is empty
+        //     tracer.get().on_execution_start(rev, message, empty_code);
+        //     tracer.get().on_precompiled_run(res.raw(), state_);
+        //     tracer.get().on_execution_end(res.raw(), state_);
+        // }
     } else {
         const ByteView code{state_.get_code(message.code_address)};
-        if (code.empty() && tracers_.empty()) {  // Do not skip execution if there are any tracers
+        if (code.empty()) {  // Do not skip execution if there are any tracers
             return res;
         }
 
@@ -301,15 +296,15 @@ evmc_revision EVM::revision() const noexcept {
     return config().revision(block_.header.number, block_.header.timestamp);
 }
 
-void EVM::add_tracer(EvmTracer& tracer) noexcept {
-    vm_impl().add_tracer(std::make_unique<DelegatingTracer>(tracer, state_));
-    tracers_.push_back(std::ref(tracer));
-}
+// void EVM::add_tracer(EvmTracer& tracer) noexcept {
+//     vm_impl().add_tracer(std::make_unique<DelegatingTracer>(tracer, state_));
+//     tracers_.push_back(std::ref(tracer));
+// }
 
-void EVM::remove_tracers() noexcept {
-    vm_impl().remove_tracers();
-    tracers_.clear();
-}
+// void EVM::remove_tracers() noexcept {
+//     vm_impl().remove_tracers();
+//     tracers_.clear();
+// }
 
 bool EvmHost::account_exists(const evmc::address& address) const noexcept {
     const evmc_revision rev{evm_.revision()};
@@ -423,9 +418,9 @@ bool EvmHost::selfdestruct(const evmc::address& address, const evmc::address& be
         evm_.state().set_balance(address, 0);
         recorded = evm_.state().record_suicide(address);
     }
-    for (auto tracer : evm_.tracers()) {
-        tracer.get().on_self_destruct(address, beneficiary);
-    }
+    // for (auto tracer : evm_.tracers()) {
+    //     tracer.get().on_self_destruct(address, beneficiary);
+    // }
     return recorded;
 }
 

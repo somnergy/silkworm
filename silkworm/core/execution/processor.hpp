@@ -30,7 +30,7 @@ class ExecutionProcessor {
      */
     void execute_transaction(const Transaction& txn, Receipt& receipt) noexcept;
 
-    CallResult call(const Transaction& txn, const std::vector<std::shared_ptr<EvmTracer>>& tracers, bool refund) noexcept;
+    CallResult call(const Transaction& txn, bool refund) noexcept;
 
     //! \brief Execute the block.
     //! \remarks Warning: This method does not verify state root; pre-Byzantium receipt root isn't validated either.
@@ -60,11 +60,11 @@ class ExecutionProcessor {
      */
     ValidationResult execute_block_no_post_validation(std::vector<Receipt>& receipts) noexcept;
 
-    //! \brief Notify the registered tracers at the start of block execution.
-    void notify_block_execution_start(const Block& block);
+    // //! \brief Notify the registered tracers at the start of block execution.
+    // void notify_block_execution_start(const Block& block);
 
-    //! \brief Notify the registered tracers at the end of block execution.
-    void notify_block_execution_end(const Block& block);
+    // //! \brief Notify the registered tracers at the end of block execution.
+    // void notify_block_execution_end(const Block& block);
 
     uint64_t calculate_refund_gas(const Transaction& txn, uint64_t gas_left, uint64_t gas_refund) const noexcept;
 

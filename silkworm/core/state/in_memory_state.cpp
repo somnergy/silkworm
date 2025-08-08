@@ -127,7 +127,7 @@ void InMemoryState::decanonize_block(BlockNum block_num) { (void)canonical_hashe
 
 void InMemoryState::insert_receipts(BlockNum, const std::vector<Receipt>&) {}
 
-void InMemoryState::insert_call_traces(BlockNum /*block_num*/, const CallTraces& /*traces*/) {}
+// void InMemoryState::insert_call_traces(BlockNum /*block_num*/, const CallTraces& /*traces*/) {}
 
 void InMemoryState::begin_block(BlockNum block_num, size_t /*updated_accounts_count*/) {
     block_num_ = block_num;

@@ -96,7 +96,9 @@ ExecutionProcessor::ExecutionProcessor(const Block& block, protocol::RuleSet& ru
     : state_{state}, rule_set_{rule_set}, evm_{block, state_, config}, evm1_v2_{evm1_v2} {
     evm_.beneficiary = rule_set.get_beneficiary(block.header);
     evm_.transfer = rule_set.transfer_func();
-
+    // if(evm_.vm().get_raw_pointer() == nullptr) {
+    //     return;
+    // }
     evm1_block_ = {
         .number = static_cast<int64_t>(block.header.number),
         .timestamp = static_cast<int64_t>(block.header.timestamp),
@@ -181,7 +183,7 @@ void ExecutionProcessor::execute_transaction(const Transaction& txn, Receipt& re
     auto gas_used = static_cast<uint64_t>(evm1_receipt.gas_used);
     cumulative_gas_used_ += gas_used;
 
-    // // Prepare the receipt using the result from evmone.
+    // Prepare the receipt using the result from evmone.
     receipt.type = txn.type;
     receipt.success = evm1_receipt.status == EVMC_SUCCESS;
     receipt.cumulative_gas_used = cumulative_gas_used_;
@@ -279,7 +281,7 @@ void ExecutionProcessor::execute_transaction(const Transaction& txn, Receipt& re
     check_evm1_execution_result(evm1_receipt.state_diff, state_);
 }
 
-CallResult ExecutionProcessor::call(const Transaction& txn, const std::vector<std::shared_ptr<EvmTracer>>& tracers, bool refund) noexcept {
+CallResult ExecutionProcessor::call(const Transaction& txn, bool refund) noexcept {
     const std::optional<evmc::address> sender{txn.sender()};
     // SILKWORM_ASSERT(sender);
 
@@ -293,9 +295,9 @@ CallResult ExecutionProcessor::call(const Transaction& txn, const std::vector<st
 
     const intx::uint256 effective_gas_price{txn.max_fee_per_gas >= base_fee_per_gas ? txn.effective_gas_price(base_fee_per_gas)
                                                                                     : txn.max_priority_fee_per_gas};
-    for (auto& tracer : tracers) {
-        evm_.add_tracer(*tracer);
-    }
+    // for (auto& tracer : tracers) {
+    //     evm_.add_tracer(*tracer);
+    // }
 
     const evmc_revision rev{evm_.revision()};
     update_access_lists(*sender, txn, rev);
@@ -342,12 +344,12 @@ CallResult ExecutionProcessor::call(const Transaction& txn, const std::vector<st
 
     state_.add_to_balance(evm_.beneficiary, priority_fee_per_gas * gas_used);
 
-    for (auto& tracer : evm_.tracers()) {
-        tracer.get().on_reward_granted(result, state_);
-    }
+    // for (auto& tracer : evm_.tracers()) {
+    //     tracer.get().on_reward_granted(result, state_);
+    // }
     state_.finalize_transaction(evm_.revision());
 
-    evm_.remove_tracers();
+    // evm_.remove_tracers();
 
     return {ValidationResult::kOk, result.status, gas_left, gas_refund, gas_used, result.data, result.error_message};
 }
@@ -400,7 +402,7 @@ ValidationResult ExecutionProcessor::execute_block_no_post_validation(std::vecto
     cumulative_gas_used_ = 0;
 
     const Block& block{evm_.block()};
-    notify_block_execution_start(block);
+    // notify_block_execution_start(block);
 
     receipts.resize(block.transactions.size());
     auto receipt_it{receipts.begin()};
@@ -423,7 +425,7 @@ ValidationResult ExecutionProcessor::execute_block_no_post_validation(std::vecto
     const auto finalization_result = rule_set_.finalize(state_, block, evm_, logs);
     state_.finalize_transaction(rev);
 
-    notify_block_execution_end(block);
+    // notify_block_execution_end(block);
 
     return finalization_result;
 }
@@ -464,18 +466,18 @@ void ExecutionProcessor::flush_state() {
     state_.write_to_db(evm_.block().header.number);
 }
 
-//! \brief Notify the registered tracers at the start of block execution.
-void ExecutionProcessor::notify_block_execution_start(const Block& block) {
-    for (auto& tracer : evm_.tracers()) {
-        tracer.get().on_block_start(block);
-    }
-}
+// //! \brief Notify the registered tracers at the start of block execution.
+// void ExecutionProcessor::notify_block_execution_start(const Block& block) {
+//     for (auto& tracer : evm_.tracers()) {
+//         tracer.get().on_block_start(block);
+//     }
+// }
 
-//! \brief Notify the registered tracers at the end of block execution.
-void ExecutionProcessor::notify_block_execution_end(const Block& block) {
-    for (auto& tracer : evm_.tracers()) {
-        tracer.get().on_block_end(block);
-    }
-}
+// //! \brief Notify the registered tracers at the end of block execution.
+// void ExecutionProcessor::notify_block_execution_end(const Block& block) {
+//     for (auto& tracer : evm_.tracers()) {
+//         tracer.get().on_block_end(block);
+//     }
+// }
 
 }  // namespace silkworm

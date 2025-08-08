@@ -5,7 +5,7 @@
 
 #include <silkworm/core/state/block_state.hpp>
 #include <silkworm/core/types/account.hpp>
-#include <silkworm/core/types/call_traces.hpp>
+// #include <silkworm/core/types/call_traces.hpp>
 #include <silkworm/core/types/receipt.hpp>
 
 namespace silkworm {
@@ -53,7 +53,7 @@ class State : public BlockState {
 
     virtual void insert_receipt([[maybe_unused]] const Receipt& receipt, [[maybe_unused]] uint64_t current_log_index, [[maybe_unused]] uint64_t blob_gas_used){};
 
-    virtual void insert_call_traces(BlockNum block_num, const CallTraces& traces) = 0;
+    // virtual void insert_call_traces(BlockNum block_num, const CallTraces& traces) = 0;
 
     /** @name State changes
      *  Change sets are backward changes of the state, i.e. account/storage values <em>at the beginning of a block</em>.

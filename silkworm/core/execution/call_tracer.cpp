@@ -114,18 +114,18 @@ inline evmc_status_code check_preconditions(const intx::uint256* stack_top, int 
 
 namespace silkworm {
 
-void CallTracer::on_execution_start(evmc_revision /*rev*/, const evmc_message& msg, evmone::bytes_view /*code*/) noexcept {
-    if (msg.kind == EVMC_CALLCODE) {
-        traces_.senders.insert(msg.sender);
-        traces_.recipients.insert(msg.code_address);
-    } else if (msg.kind == EVMC_DELEGATECALL) {
-        traces_.senders.insert(msg.recipient);
-        traces_.recipients.insert(msg.code_address);
-    } else {
-        traces_.senders.insert(msg.sender);
-        traces_.recipients.insert(msg.recipient);
-    }
-}
+// void CallTracer::on_execution_start(evmc_revision /*rev*/, const evmc_message& msg, evmone::bytes_view /*code*/) noexcept {
+//     if (msg.kind == EVMC_CALLCODE) {
+//         traces_.senders.insert(msg.sender);
+//         traces_.recipients.insert(msg.code_address);
+//     } else if (msg.kind == EVMC_DELEGATECALL) {
+//         traces_.senders.insert(msg.recipient);
+//         traces_.recipients.insert(msg.code_address);
+//     } else {
+//         traces_.senders.insert(msg.sender);
+//         traces_.recipients.insert(msg.recipient);
+//     }
+// }
 
 template <Opcode Op>
 void on_create_start(const intx::uint256* stack_top, int stack_height, int64_t gas,
@@ -175,26 +175,26 @@ void on_create_start(const intx::uint256* stack_top, int stack_height, int64_t g
     traces.recipients.insert(contract_address);
 }
 
-void CallTracer::on_instruction_start(uint32_t pc, const intx::uint256* stack_top, int stack_height, int64_t gas,
-                                      const evmone::ExecutionState& state, const IntraBlockState& intra_block_state) noexcept {
-    const auto op_code = state.original_code[pc];
-    if (op_code == evmc_opcode::OP_CREATE) {
-        on_create_start<Opcode::OP_CREATE>(stack_top, stack_height, gas, state, intra_block_state, traces_);
-    } else if (op_code == evmc_opcode::OP_CREATE2) {
-        on_create_start<Opcode::OP_CREATE2>(stack_top, stack_height, gas, state, intra_block_state, traces_);
-    }
-}
+// void CallTracer::on_instruction_start(uint32_t pc, const intx::uint256* stack_top, int stack_height, int64_t gas,
+//                                       const evmone::ExecutionState& state, const IntraBlockState& intra_block_state) noexcept {
+//     const auto op_code = state.original_code[pc];
+//     if (op_code == evmc_opcode::OP_CREATE) {
+//         on_create_start<Opcode::OP_CREATE>(stack_top, stack_height, gas, state, intra_block_state, traces_);
+//     } else if (op_code == evmc_opcode::OP_CREATE2) {
+//         on_create_start<Opcode::OP_CREATE2>(stack_top, stack_height, gas, state, intra_block_state, traces_);
+//     }
+// }
 
-void CallTracer::on_self_destruct(const evmc::address& address, const evmc::address& beneficiary) noexcept {
-    traces_.senders.insert(address);
-    traces_.recipients.insert(beneficiary);
-}
+// void CallTracer::on_self_destruct(const evmc::address& address, const evmc::address& beneficiary) noexcept {
+//     traces_.senders.insert(address);
+//     traces_.recipients.insert(beneficiary);
+// }
 
-void CallTracer::on_block_end(const silkworm::Block& block) noexcept {
-    traces_.recipients.insert(block.header.beneficiary);
-    for (const auto& ommer : block.ommers) {
-        traces_.recipients.insert(ommer.beneficiary);
-    }
-}
+// void CallTracer::on_block_end(const silkworm::Block& block) noexcept {
+//     traces_.recipients.insert(block.header.beneficiary);
+//     for (const auto& ommer : block.ommers) {
+//         traces_.recipients.insert(ommer.beneficiary);
+//     }
+// }
 
 }  // namespace silkworm

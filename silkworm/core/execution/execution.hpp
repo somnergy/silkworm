@@ -10,7 +10,7 @@
 #include <silkworm/core/protocol/rule_set.hpp>
 #include <silkworm/core/state/state.hpp>
 #include <silkworm/core/types/block.hpp>
-#include <silkworm/core/types/call_traces.hpp>
+// #include <silkworm/core/types/call_traces.hpp>
 #include <silkworm/core/types/receipt.hpp>
 
 namespace silkworm {

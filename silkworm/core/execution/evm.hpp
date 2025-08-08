@@ -36,33 +36,33 @@ struct CallResult {
     std::string error_message;
 };
 
-class EvmTracer {
-  public:
-    virtual ~EvmTracer() = default;
+// class EvmTracer {
+//   public:
+//     virtual ~EvmTracer() = default;
 
-    virtual void on_block_start(const Block& /*block*/) noexcept {}
+//     virtual void on_block_start(const Block& /*block*/) noexcept {}
 
-    virtual void on_execution_start(evmc_revision /*rev*/, const evmc_message& /*msg*/, evmone::bytes_view /*code*/) noexcept {}
+//     virtual void on_execution_start(evmc_revision /*rev*/, const evmc_message& /*msg*/, evmone::bytes_view /*code*/) noexcept {}
 
-    virtual void on_instruction_start(uint32_t /*pc*/, const intx::uint256* /*stack_top*/, int /*stack_height*/,
-                                      int64_t /*gas*/, const evmone::ExecutionState& /*state*/,
-                                      const IntraBlockState& /*intra_block_state*/) noexcept {}
+//     virtual void on_instruction_start(uint32_t /*pc*/, const intx::uint256* /*stack_top*/, int /*stack_height*/,
+//                                       int64_t /*gas*/, const evmone::ExecutionState& /*state*/,
+//                                       const IntraBlockState& /*intra_block_state*/) noexcept {}
 
-    virtual void on_execution_end(const evmc_result& /*result*/, const IntraBlockState& /*intra_block_state*/) noexcept {}
+//     virtual void on_execution_end(const evmc_result& /*result*/, const IntraBlockState& /*intra_block_state*/) noexcept {}
 
-    virtual void on_pre_check_failed(const evmc_result& /*result*/, const evmc_message& /*msg*/) noexcept {};
-    virtual void on_creation_completed(const evmc_result& /*result*/, const IntraBlockState& /*intra_block_state*/) noexcept {}
+//     virtual void on_pre_check_failed(const evmc_result& /*result*/, const evmc_message& /*msg*/) noexcept {};
+//     virtual void on_creation_completed(const evmc_result& /*result*/, const IntraBlockState& /*intra_block_state*/) noexcept {}
 
-    virtual void on_precompiled_run(const evmc_result& /*result*/, const IntraBlockState& /*intra_block_state*/) noexcept {}
+//     virtual void on_precompiled_run(const evmc_result& /*result*/, const IntraBlockState& /*intra_block_state*/) noexcept {}
 
-    virtual void on_reward_granted(const CallResult& /*result*/, const IntraBlockState& /*intra_block_state*/) noexcept {}
+//     virtual void on_reward_granted(const CallResult& /*result*/, const IntraBlockState& /*intra_block_state*/) noexcept {}
 
-    virtual void on_self_destruct(const evmc::address& /*address*/, const evmc::address& /*beneficiary*/) noexcept {}
+//     virtual void on_self_destruct(const evmc::address& /*address*/, const evmc::address& /*beneficiary*/) noexcept {}
 
-    virtual void on_block_end(const Block& /*block*/) noexcept {}
-};
+//     virtual void on_block_end(const Block& /*block*/) noexcept {}
+// };
 
-using EvmTracers = std::vector<std::reference_wrapper<EvmTracer>>;
+// using EvmTracers = std::vector<std::reference_wrapper<EvmTracer>>;
 
 using AnalysisCache = LruCache<evmc::bytes32, std::shared_ptr<evmone::baseline::CodeAnalysis>>;
 
@@ -110,9 +110,9 @@ class EVM {
 
     evmc_revision revision() const noexcept;
 
-    void add_tracer(EvmTracer& tracer) noexcept;
-    void remove_tracers() noexcept;
-    const EvmTracers& tracers() const noexcept { return tracers_; };
+    // void add_tracer(EvmTracer& tracer) noexcept;
+    // void remove_tracers() noexcept;
+    // const EvmTracers& tracers() const noexcept { return tracers_; };
 
     AnalysisCache* analysis_cache{nullptr};  // provide one for better performance
 
@@ -143,10 +143,9 @@ class EVM {
     const ChainConfig& config_;
     const Transaction* txn_{nullptr};
     std::vector<evmc::bytes32> block_hashes_{};
-    EvmTracers tracers_;
+    // EvmTracers tracers_;
 
-    // evmone is defined as static since it's stateless and doesn't have to be recreated every time EVM class is created
-    static evmc::VM evm1_;  // we cannot use SILKWORM_THREAD_LOCAL i.e. static in WASM (duplicate-decl-specifier)
+    evmc::VM evm1_;  
 
 };
 

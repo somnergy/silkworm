@@ -21,3 +21,6 @@ silkworm_library(
   PUBLIC ${LIBS_PUBLIC}
   PRIVATE ${LIBS_PRIVATE}
 )
+
+## Enable it only for local testing due to gmp ld linking issue
+# add_subdirectory(cli)
