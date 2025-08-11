@@ -13,15 +13,17 @@
 namespace silkworm::cmd::state_transition {
 
 class ExpectedSubState {
+  nlohmann::json& sub_state_data_;
+
   public:
+    ExpectedSubState(
+      nlohmann::json& sub_state_data
+    ) : sub_state_data_(sub_state_data) {}
+    // std::move(sub_state_data)
     unsigned index{};
     evmc::bytes32 stateHash;
     evmc::bytes32 logsHash;
-    uint64_t dataIndex{};
-    uint64_t gasIndex{};
-    uint64_t valueIndex{};
-    bool exceptionExpected{false};
-    std::string exceptionMessage;
+    const nlohmann::json& get_sub_state_data() const { return sub_state_data_; };
 };
 
 class ExpectedState {
@@ -30,12 +32,14 @@ class ExpectedState {
 
   public:
     ExpectedState(
-        nlohmann::json state_data,
+        nlohmann::json& state_data,
         std::string fork_name)
-        : state_data_{std::move(state_data)},
+        : state_data_(state_data),
           fork_name_{std::move(fork_name)} {}
 
     ChainConfig get_config() const;
+
+    const nlohmann::json& get_state_data() const { return state_data_; };
 
     std::vector<ExpectedSubState> get_sub_states();
 

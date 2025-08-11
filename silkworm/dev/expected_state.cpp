@@ -26,23 +26,15 @@ ChainConfig ExpectedState::get_config() const {
 std::vector<ExpectedSubState> ExpectedState::get_sub_states() {
     std::vector<ExpectedSubState> sub_states;
     unsigned i = 0;
-    // std::cout << "In get_sub_states" << state_data_ << "\n";
-
+    std::cout << "\n\n ===== In get_sub_states" << state_data_ << "\n";
+    // auto state_itmes =state_data_.items();
     for (auto& tx : state_data_) {
-        ExpectedSubState sub_state;
+        ExpectedSubState sub_state{tx};
+        std::cout << "\n\n ========= get_sub_states for (auto& tx : state_data_) tx.dump()\n" << tx.dump() << "\n";
+        // std::cout << "\n\n ========= get_sub_states get_sub_state_data()\n" << sub_state.get_sub_state_data().dump() << "\n";
         // std::cout << "tx.dump()" << tx.dump() << "\n";
         sub_state.stateHash = to_bytes32(from_hex(tx["hash"].get<std::string>()).value_or(Bytes{}));
         sub_state.logsHash = to_bytes32(from_hex(tx["logs"].get<std::string>()).value_or(Bytes{}));
-        sub_state.dataIndex = tx["indexes"]["data"].get<uint64_t>();
-        sub_state.gasIndex = tx["indexes"]["gas"].get<uint64_t>();
-        sub_state.valueIndex = tx["indexes"]["value"].get<uint64_t>();
-        if (tx.contains("expectException")) {
-            sub_state.exceptionExpected = true;
-            sub_state.exceptionMessage = tx["expectException"];
-        } else {
-            sub_state.exceptionExpected = false;
-        }
-
         sub_state.index = i;
         sub_states.push_back(sub_state);
         ++i;
@@ -50,4 +42,5 @@ std::vector<ExpectedSubState> ExpectedState::get_sub_states() {
 
     return sub_states;
 }
+
 };  // namespace silkworm::cmd::state_transition

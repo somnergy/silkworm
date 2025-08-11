@@ -23,4 +23,4 @@ silkworm_library(
 )
 
 ## Enable it only for local testing due to gmp ld linking issue
-# add_subdirectory(cli)
+add_subdirectory(cli)
