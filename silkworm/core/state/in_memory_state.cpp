@@ -247,11 +247,17 @@ evmc::bytes32 InMemoryState::state_root_hash() const {
     for (const auto& [address, account] : accounts_) {
         ethash::hash256 hash{keccak256(address.bytes)};
         evmc::bytes32 storage_root{account_storage_root(address, account.incarnation)};
+        // std::cout << to_hex(address.bytes) << ":  " << to_hex(storage_root.bytes) << "\n";
+        // std::cout << account.to_string() << "\n\n--";
         account_rlp[to_bytes32(hash.bytes)] = account.rlp(storage_root);
     }
 
+
+    // std::cout << "\n" << " Hash: acc_rlp\n";
+
     trie::HashBuilder hb;
     for (const auto& [hash, rlp] : account_rlp) {
+        // std::cout << to_hex(hash) << ":  " << to_hex(rlp) << "\n";
         hb.add_leaf(trie::unpack_nibbles(hash.bytes), rlp);
     }
 
