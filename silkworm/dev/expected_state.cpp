@@ -34,7 +34,7 @@ std::vector<ExpectedSubState> ExpectedState::get_sub_states() {
         // std::cout << "\n\n ========= get_sub_states get_sub_state_data()\n" << sub_state.get_sub_state_data().dump() << "\n";
         // std::cout << "tx.dump()" << tx.dump() << "\n";
         sub_state.stateHash = to_bytes32(from_hex(tx["hash"].get<std::string>()).value_or(Bytes{}));
-        sub_state.logsHash = to_bytes32(from_hex(tx["logs"].get<std::string>()).value_or(Bytes{}));
+        // sub_state.logsHash = to_bytes32(from_hex(tx["logs"].get<std::string>()).value_or(Bytes{}));
         sub_state.index = i;
         sub_states.push_back(sub_state);
         ++i;

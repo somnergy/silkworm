@@ -155,16 +155,11 @@ void ExecutionProcessor::execute_transaction(const Transaction& txn, Receipt& re
                                                .v = authorization.v()});
     }
 
-
-
     const auto rev = evm_.revision();
     const auto g0 = protocol::intrinsic_gas(txn, rev);
-    if (g0 > 1000) {
 
-    }
     // // SILKWORM_ASSERT(g0 <= INT64_MAX);  // true due to the precondition (transaction must be valid)
     const auto execution_gas_limit = txn.gas_limit - static_cast<uint64_t>(g0);
-
 
     // // Execute transaction with evmone APIv2.
     // // This must be done before the Silkworm execution so that the state is unmodified.

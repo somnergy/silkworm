@@ -89,7 +89,8 @@ InMemoryState read_genesis_allocation(const nlohmann::json& alloc) {
         Account account;
         account.balance = intx::from_string<intx::uint256>(account_json.at("balance"));
         if (account_json.contains("nonce")) {
-            account.nonce = std::stoull(account_json["nonce"].get<std::string>(), nullptr, /*base=*/16);
+            // account.nonce = std::stoull(account_json["nonce"].get<std::string>(), nullptr, /*base=*/16);
+            account.nonce = account_json["nonce"].get<std::uint64_t>();
         }
         if (account_json.contains("code")) {
             const Bytes code{*from_hex(account_json["code"].get<std::string>())};
