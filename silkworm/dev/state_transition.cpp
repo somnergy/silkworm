@@ -65,8 +65,8 @@ std::vector<ExpectedState> StateTransition::get_expected_states() {
 
 ExpectedState StateTransition::get_expected_state() {
     auto post_items = test_data_.at("transactions").items();
-    std::cout << "get_expected_states:test_data====post_items\n"
-              << post_items << "\n";
+    // std::cout << "get_expected_states:test_data====post_items\n"
+    //           << post_items << "\n";
     // ExpectedState expected_state{"", ""};
     return ExpectedState{post_items.begin().value(), post_items.begin().key()};
     // for (const auto& post_state : post_items) {
@@ -305,23 +305,25 @@ void cleanup_error_block(Block& block, ExecutionProcessor& processor, const evmc
     processor.evm().state().write_to_db(block.header.number);
 }
 
-void StateTransition::run() {
+uint64_t StateTransition::run() {
     failed_count_ = 0;
     total_count_ = 0;
+    uint64_t total_gas = 0;
     auto expected_state = get_expected_state();
     auto sub_states = expected_state.get_sub_states();
+    auto config = expected_state.get_config();
+    auto rule_set = protocol::rule_set_factory(config);
+
     // std::cout << "\n\n =========== run() ===\nsub_states:\n" << sub_states;
     for (const auto& expected_sub_state : sub_states) {
         ++total_count_;
-        auto config = expected_state.get_config();
-        auto rule_set = protocol::rule_set_factory(config);
         auto state = read_genesis_allocation(test_data_["pre"]);
         auto block = get_block(state, config);
         auto txn = get_txn_from_sub_state(expected_sub_state);
 
         ExecutionProcessor processor{block, *rule_set, state, config, true};
         if (processor.evm().vm().get_raw_pointer() == nullptr) {
-            return;
+            return 0;
         }
 
         Receipt receipt;
@@ -337,7 +339,8 @@ void StateTransition::run() {
             pre_txn_validation == ValidationResult::kOk &&
             txn_validation == ValidationResult::kOk) {
             processor.execute_transaction(txn, receipt);
-            processor.evm().state().write_to_db(block.header.number);
+            total_gas += receipt.cumulative_gas_used;
+            // processor.evm().state().write_to_db(block.header.number);
         } else {
             // INCORRECT PATH =============
             // processor.execute_transaction(txn, receipt);
@@ -354,7 +357,9 @@ void StateTransition::run() {
 
     if (show_diagnostics_) {
         // std::cout doesn't play well with risv
+        // std::cout << "Total Gas: " << total_gas;
     }
+    return total_gas;
 }
 
 void sample_run() {

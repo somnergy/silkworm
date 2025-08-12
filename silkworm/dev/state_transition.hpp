@@ -47,7 +47,7 @@ class StateTransition {
     Transaction get_txn_from_sub_state(const ExpectedSubState& expected_state);
     // Transaction get_transaction(const ExpectedSubState& expected_sub_state);
     void validate_transition(const Receipt& receipt, const ExpectedState& expected_state, const ExpectedSubState& expected_sub_state, const InMemoryState& state);
-    void run();
+    uint64_t run();
 };
 void sample_run();
 
