@@ -47,8 +47,7 @@ class StateTransition {
     Transaction get_txn_from_sub_state(const ExpectedSubState& expected_state);
     // Transaction get_transaction(const ExpectedSubState& expected_sub_state);
     void validate_transition(const Receipt& receipt, const ExpectedState& expected_state, const ExpectedSubState& expected_sub_state, const InMemoryState& state);
-    uint64_t run();
+    uint64_t run(uint32_t num_runs);
 };
-void sample_run();
 
 }  // namespace silkworm::cmd::state_transition

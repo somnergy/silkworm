@@ -23,4 +23,6 @@ silkworm_library(
 )
 
 ## Enable it only for local testing due to gmp ld linking issue
-# add_subdirectory(cli)
+if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL "riscv32")
+  add_subdirectory(cli)
+endif()
