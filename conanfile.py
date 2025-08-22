@@ -20,8 +20,8 @@ class SilkwormRecipe(ConanFile):
 
         # self.requires('benchmark/1.6.1')
         self.requires('boost/1.83.0', override=True)
-        self.requires('cli11/2.2.0')
-        self.requires('gmp/6.2.1')
+        # self.requires('cli11/2.2.0')
+        # self.requires('gmp/6.2.1')
         # fix to an older recipe revision due to missing binary packages for the latest revision
         # see https://github.com/conan-io/conan-center-index/issues/26959
         # self.requires('grpc/1.67.1#c214ddb4e04e8d9a44d3a100defc9706')
@@ -36,7 +36,7 @@ class SilkwormRecipe(ConanFile):
         # self.requires('spdlog/1.12.0')
         # self.requires('sqlitecpp/3.3.0')
         # self.requires('tomlplusplus/3.3.0')
-        self.requires('libdeflate/1.23')
+        # self.requires('libdeflate/1.23')
 
     def configure(self):
         if (self.settings.os == 'Linux') and (self.settings.compiler == 'clang'):

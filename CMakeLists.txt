@@ -15,7 +15,7 @@ if(NOT SILKWORM_HAS_PARENT)
     set(CMAKE_MESSAGE_LOG_LEVEL NOTICE)
   endif()
 
-  include(third_party/evmone/evmone/cmake/cable/bootstrap.cmake)
+  include(${CMAKE_CURRENT_SOURCE_DIR}/third_party/evmone/evmone/cmake/cable/bootstrap.cmake)
   include(CableBuildType)
   cable_set_build_type(DEFAULT Release CONFIGURATION_TYPES Release Debug)
 

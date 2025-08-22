@@ -16,6 +16,8 @@ function(guess_conan_profile)
 
   if("${CMAKE_HOST_SYSTEM_PROCESSOR}" STREQUAL "")
     set(ARCH_NAME "")
+  elseif(CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL riscv32)
+    set(ARCH_NAME riscv32)
   elseif(CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL x86_64)
     set(ARCH_NAME x64)
   elseif(CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL IA64)
@@ -27,6 +29,9 @@ function(guess_conan_profile)
   elseif(CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL AArch64)
     set(ARCH_NAME arm64)
   endif()
+  message(STATUS "SPIDERMAN CMAKE_HOST_SYSTEM_PROCESSOR=${CMAKE_HOST_SYSTEM_PROCESSOR}")
+
+
 
   if(SILKWORM_WASM_API)
     set(PROFILE wasi_release)
@@ -46,15 +51,15 @@ function(guess_conan_profile)
   )
 endfunction()
 
-function(get_conan_build_type profile_path var)
-  file(READ "${profile_path}" CONTENTS)
-  string(REGEX MATCH "build_type=[A-Za-z0-9]+" VALUE "${CONTENTS}")
-  string(SUBSTRING "${VALUE}" 11 -1 VALUE)
-  set(${var}
-      "${VALUE}"
-      PARENT_SCOPE
-  )
-endfunction()
+# function(get_conan_build_type profile_path var)
+#   file(READ "${profile_path}" CONTENTS)
+#   string(REGEX MATCH "build_type=[A-Za-z0-9]+" VALUE "${CONTENTS}")
+#   string(SUBSTRING "${VALUE}" 11 -1 VALUE)
+#   set(${var}
+#       "${VALUE}"
+#       PARENT_SCOPE
+#   )
+# endfunction()
 
 macro(format_list_as_json_array list_var var)
   list(JOIN ${list_var} "\",\"" ${var})
@@ -79,10 +84,10 @@ if(NOT DEFINED CONAN_PROFILE)
   guess_conan_profile()
 endif()
 message(VERBOSE "CONAN_PROFILE: ${CONAN_PROFILE}")
-set(CONAN_PROFILE_PATH "${CMAKE_SOURCE_DIR}/cmake/profiles/${CONAN_PROFILE}")
-set(CONAN_HOST_PROFILE "${CONAN_PROFILE_PATH}")
-set(CONAN_BUILD_PROFILE "${CONAN_PROFILE_PATH}")
-get_conan_build_type("${CONAN_PROFILE_PATH}" CONAN_BUILD_TYPE)
+# set(CONAN_PROFILE_PATH "${CMAKE_SOURCE_DIR}/cmake/profiles/${CONAN_PROFILE}")
+# set(CONAN_HOST_PROFILE "${CONAN_PROFILE_PATH}")
+# set(CONAN_BUILD_PROFILE "${CONAN_PROFILE_PATH}")
+# get_conan_build_type("${CONAN_PROFILE_PATH}" CONAN_BUILD_TYPE)
 
 set(CONAN_BUILD "missing")
 set(CONAN_SETTINGS "")
