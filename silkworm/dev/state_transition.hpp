@@ -18,20 +18,17 @@ namespace silkworm::cmd::state_transition {
 
 class StateTransition {
   private:
-    nlohmann::json test_data_;
-    std::string test_name_;
+    ByteView block_rlp_;
+    ByteView pre_state_rlp_;
     unsigned total_count_{};
     unsigned failed_count_{};
-    bool terminate_on_error_{false};
-    bool show_diagnostics_{false};
 
     // void print_message(const ExpectedState& expected_state, const ExpectedSubState& expected_sub_state, const std::string& message);
     // void print_error_message(const ExpectedState& expected_state, const ExpectedSubState& expected_sub_state, const std::string& message);
     // void print_diagnostic_message(const ExpectedState& expected_state, const ExpectedSubState& expected_sub_state, const std::string& message);
 
   public:
-    explicit StateTransition(const std::string& json_str, bool terminate_on_error, bool show_diagnostics) noexcept;
-    explicit StateTransition(const bool terminate_on_error, const bool show_diagnostics) noexcept;
+    explicit StateTransition(ByteView block_rlp, ByteView pre_state_rlp) noexcept;
 
     // std::string name();
     std::string get_env(const std::string& key);

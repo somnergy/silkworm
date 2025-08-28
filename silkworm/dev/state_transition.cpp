@@ -26,27 +26,9 @@
 
 namespace silkworm::cmd::state_transition {
 
-StateTransition::StateTransition(const std::string& json_str, const bool terminate_on_error, const bool show_diagnostics) noexcept
-    : terminate_on_error_{terminate_on_error},
-      show_diagnostics_{show_diagnostics} {
-    nlohmann::json base_json;
-    base_json = nlohmann::json::parse(json_str);
-    auto test_object = base_json.begin();
-    test_name_ = test_object.key();
-    test_data_ = test_object.value();
-}
-
-StateTransition::StateTransition(const bool terminate_on_error, const bool show_diagnostics) noexcept
-    : terminate_on_error_{terminate_on_error},
-      show_diagnostics_{show_diagnostics} {
-    nlohmann::json base_json;
-    const std::string json_str = R"json(
-    )json";
-    base_json = nlohmann::json::parse(json_str);
-    auto test_object = base_json.begin();
-    test_name_ = test_object.key();
-    test_data_ = test_object.value();
-}
+StateTransition::StateTransition(ByteView block_rlp, ByteView pre_state_rlp) noexcept
+    : block_rlp_{block_rlp},
+      pre_state_rlp_{pre_state_rlp} {}
 
 std::vector<ExpectedState> StateTransition::get_expected_states() {
     std::vector<ExpectedState> expected_states;
@@ -185,29 +167,6 @@ Block StateTransition::get_block(InMemoryState& state, ChainConfig& chain_config
     return block;
 }
 
-std::unique_ptr<evmc::address> StateTransition::private_key_to_address(const std::string& private_key) {
-    /// Example
-    // private key: 0x45a915e4d060149eb4365960e6a7a45f334393093061116b197e3240065ff2d8
-    // public key : 043a514176466fa815ed481ffad09110a2d344f6c9b78c1d14afc351c3a51be33d8072e77939dc03ba44790779b7a1025baf3003f6732430e20cd9b76d953391b3
-    // address    : 0xa94f5374Fce5edBC8E2a8697C15331677e6EbF0B
-
-    auto private_key_bytes = from_hex(private_key).value();
-
-    if (private_key_bytes.length() == 32) {
-        auto pair = sentry::EccKeyPair(private_key_bytes);
-        uint8_t out[kAddressLength];
-        auto public_key_hash = keccak256(pair.public_key().serialized());
-        std::memcpy(out, public_key_hash.bytes + 12, sizeof(out));
-        return std::make_unique<evmc::address>(bytes_to_address(out));
-    }
-
-    uint8_t out[kAddressLength];
-    // auto public_key_hash = keccak256(pair.public_key().serialized());
-    // std::memcpy(out, public_key_hash.bytes + 12, sizeof(out));
-
-    return std::make_unique<evmc::address>(bytes_to_address(out));
-}
-
 std::unique_ptr<evmc::address> StateTransition::sender_to_address(const std::string& sender) {
     return std::make_unique<evmc::address>(hex_to_address(sender));
 }
@@ -309,12 +268,19 @@ uint64_t StateTransition::run(uint32_t num_runs) {
     failed_count_ = 0;
     total_count_ = 0;
     uint64_t total_gas = 0;
-    auto expected_state = get_expected_state();
     auto sub_states = expected_state.get_sub_states();
     auto config = expected_state.get_config();
     auto rule_set = protocol::rule_set_factory(config);
-    auto state = read_genesis_allocation(test_data_["pre"]);
-    auto block = get_block(state, config);
+    auto state = read_prestate_rlp(pre_state_rlp_)
+
+    Block block;
+    if (!rlp::decode(block_rlp_, block)) {
+        if (invalid) {
+            return Status::kPassed;
+        }
+        // std::cout << "Failure to decode RLP" << std::endl;
+    }
+        
     ExecutionProcessor processor{block, *rule_set, state, config, true};
     auto pre_block_validation = rule_set->pre_validate_block_body(block, state);
     auto block_validation = rule_set->validate_block_header(block.header, state, true);
@@ -340,7 +306,7 @@ uint64_t StateTransition::run(uint32_t num_runs) {
             txn_validation == ValidationResult::kOk) {
             //============== [TESTING ONLY] SIMULATING MULTIPLE RUNS=====
             for (uint32_t i = 0; i < num_runs; i ++) {
-                auto state_cp = read_genesis_allocation(test_data_["pre"]);
+                auto state_cp = ([&](){ auto _path = get_env("preRlpPath"); auto _bytes = read_file_bytes(_path); auto _addrs = addresses_from_pre_json_sorted(test_data_["pre"]); return read_prestate_rlp(ByteView{_bytes.data(), _bytes.size()}, _addrs); })();
                 ExecutionProcessor ccprocessor{block, *rule_set, state_cp, config, true};
                 ccprocessor.execute_transaction(txn, receipt);
                 // processor.execute_transaction(txn, receipt);
@@ -363,7 +329,7 @@ uint64_t StateTransition::run(uint32_t num_runs) {
             std::cerr << "Something Went Wrong!";
         }
 
-        // validate_transition(receipt, expected_state, expected_sub_state, state);
+        validate_transition(receipt, expected_state, expected_sub_state, state);
     }
 
     if (show_diagnostics_) {
@@ -393,3 +359,91 @@ uint64_t StateTransition::run(uint32_t num_runs) {
 // void StateTransition::print_message(const ExpectedState& expected_state, const ExpectedSubState& expected_sub_state, const std::string& message) {
 //     // std::cout << "[" << test_name_ << ":" << expected_state.fork_name() << ":" << expected_sub_state.index << "] " << message << std::endl;
 // }
+
+
+using silkworm::Bytes;
+using silkworm::ByteView;
+
+static uint64_t be_to_u64_minimal(ByteView b) {
+    uint64_t x = 0;
+    for (uint8_t v : b) x = (x << 8) | v;
+    return x;
+}
+
+static intx::uint256 be_to_u256_minimal(ByteView b) {
+    intx::uint256 x{0};
+    for (uint8_t v : b) {
+        x <<= 8;
+        x |= intx::uint256{v};
+    }
+    return x;
+}
+
+static evmc::bytes32 left_pad_32(ByteView b) {
+    evmc::bytes32 out{};
+    size_t n = b.size();
+    if (n > 32) throw std::runtime_error("storage element longer than 32 bytes");
+    if (n > 0) {
+        std::memcpy(out.bytes + 32 - n, b.data(), n);
+    }
+    return out;
+}
+
+// Decode: RLP([[nonce, balance, code, [k1,v1,k2,v2,...]], ...])
+static silkworm::InMemoryState read_prestate_rlp(ByteView enc,) {
+    silkworm::rlp::Reader r{enc};
+    silkworm::InMemoryState state;
+
+    if (!r.is_list()) throw std::runtime_error("top-level RLP is not a list");
+
+    size_t idx = 0;
+    auto list_reader = r.read_list();
+    while (list_reader.has_next()) {
+        if (idx >= addresses.size())
+            throw std::runtime_error("address vector shorter than pre_state list");
+
+        const evmc::address& address = addresses[idx++];
+        auto pre_reader = list_reader.read_list();
+        ByteView addr_b = pre_reader.read_bytes();
+        ByteView nonce_b = pre_reader.read_bytes();
+        ByteView balance_b = pre_reader.read_bytes();
+        ByteView code_b = pre_reader.read_bytes();
+
+        auto stor_reader = pre_reader.read_list();
+        if (pre_reader.has_next())
+            // throw std::runtime_error("pre_state has extra fields");
+
+        silkworm::Account account;
+        account.balance = be_to_u256_minimal(balance_b); // empty -> 0
+        if (!nonce_b.empty()) {
+            account.nonce = be_to_u64_minimal(nonce_b);
+        }
+
+        if (!code_b.empty()) {
+            account.incarnation = kDefaultIncarnation;
+            const auto code_hash = std::bit_cast<evmc_bytes32>(silkworm::keccak256(code_b));
+            state.update_account_code(address, account.incarnation, code_hash, code_b);
+            account.code_hash = code_hash;
+        }
+
+        state.update_account(address, /*initial=*/std::nullopt, account);
+
+        while (stor_reader.has_next()) {
+            ByteView k = stor_reader.read_bytes();
+            if (!stor_reader.has_next())
+                throw std::runtime_error("odd number of storage elements");
+            ByteView v = stor_reader.read_bytes();
+
+            const evmc::bytes32 key32 = left_pad_32(k);
+            const evmc::bytes32 val32 = left_pad_32(v);
+
+            state.update_storage(address,
+                                 account.incarnation,
+                                 key32,
+                                 /*initial=*/{},
+                                 val32);
+        }
+    }
+    return state;
+}
+

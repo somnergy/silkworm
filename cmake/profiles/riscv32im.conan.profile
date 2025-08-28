@@ -9,8 +9,8 @@ build_type=Release
 
 [conf]
 tools.build:compiler_executables={"c": "riscv-none-elf-gcc","cpp": "riscv-none-elf-g++", "ar":"riscv-none-elf-ar"}
-tools.build:cflags=["-march=rv32im","-mabi=ilp32","-mcmodel=medany"]
-tools.build:cxxflags=["-march=rv32im","-mabi=ilp32","-mcmodel=medany"]
+tools.build:cflags=["-march=rv32im","-mabi=ilp32","-mcmodel=medany","-nostdlib"]
+tools.build:cxxflags=["-march=rv32im","-mabi=ilp32","-mcmodel=medany", "-nostdlib"]
 tools.build:sharedlinkflags=["-march=rv32im","-mabi=ilp32","-nostdlib","-Wl,--gc-sections"]
 
 [buildenv]

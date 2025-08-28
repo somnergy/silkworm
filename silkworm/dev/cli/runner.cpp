@@ -128,7 +128,7 @@ int main() {
 }
 )json";
         auto state_transition = StateTransition(json_str, false, true);
-        auto total_gas = state_transition.run(10);
+        auto total_gas = state_transition.run(1);
         std::cout << "Total Gas: " << total_gas << "\n";
 
     } catch (const std::exception& e) {
