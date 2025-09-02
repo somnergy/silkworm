@@ -18,6 +18,8 @@ namespace silkworm::cmd::state_transition {
 
 class StateTransition {
   private:
+    bool blockchain_test_{false};
+    nlohmann::json base_json_;
     nlohmann::json test_data_;
     std::string test_name_;
     unsigned total_count_{};
