@@ -23,6 +23,7 @@
 #include <silkworm/core/types/evmc_bytes32.hpp>
 #include <silkworm/dev/common/ecc_key_pair.hpp>
 
+#include "../print.hpp"
 #include "expected_state.hpp"
 
 namespace silkworm::cmd::state_transition {
@@ -30,12 +31,13 @@ namespace silkworm::cmd::state_transition {
 StateTransition::StateTransition(const std::string& json_str, const bool terminate_on_error, const bool show_diagnostics) noexcept
     : terminate_on_error_{terminate_on_error},
       show_diagnostics_{show_diagnostics} {
+    sys_println("StateTransition::StateTransition");
     base_json_ = nlohmann::json::parse(json_str);
     auto test_object = base_json_.begin();
     test_name_ = test_object.key();
     blockchain_test_ = test_object->contains("_info") && test_object->contains("blocks");
     if (blockchain_test_) {
-        std::cout << "Blockchain test\n";
+        sys_println("Blockchain test detected");
     }
     test_data_ = test_object.value();
 }
@@ -505,9 +507,17 @@ namespace {
 
 uint64_t StateTransition::run(uint32_t num_runs) {
     if (blockchain_test_) {
-        std::cerr << "Running blockchain test\n";
+        sys_println("Running blockchain test");
         const auto result = blockchain_test(test_data_);
-        (void) result;
+        if (result.failed != 0) {
+            sys_println("Blockchain test failed");
+            return 1;
+        }
+        if (result.skipped != 0) {
+            sys_println("Blockchain test skipped");
+            return 2;
+        }
+        sys_println("Blockchain test passed");
         return 0;
     }
 
