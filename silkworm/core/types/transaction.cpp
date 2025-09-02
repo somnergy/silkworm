@@ -490,21 +490,21 @@ void UnsignedTransaction::encode_for_signing(Bytes& into) const {
 }
 
 std::optional<evmc::address> Transaction::sender() const {
-    // sender_recovered_.call_once([this]() {
-    //     Bytes rlp{};
-    //     encode_for_signing(rlp);
-    //     ethash::hash256 hash{keccak256(rlp)};
+    sender_recovered_.call_once([this]() {
+        Bytes rlp{};
+        encode_for_signing(rlp);
+        ethash::hash256 hash{keccak256(rlp)};
 
-    //     uint8_t signature[kHashLength * 2];
-    //     intx::be::unsafe::store(signature, r);
-    //     intx::be::unsafe::store(signature + kHashLength, s);
+        uint8_t signature[kHashLength * 2];
+        intx::be::unsafe::store(signature, r);
+        intx::be::unsafe::store(signature + kHashLength, s);
 
-    //     sender_ = evmc::address{};
-    //     static secp256k1_context* context{secp256k1_context_create(SILKWORM_SECP256K1_CONTEXT_FLAGS)};
-    //     if (!silkworm_recover_address(sender_->bytes, hash.bytes, signature, odd_y_parity, context)) {
-    //         sender_ = std::nullopt;
-    //     }
-    // });
+        sender_ = evmc::address{};
+        static secp256k1_context* context{secp256k1_context_create(SILKWORM_SECP256K1_CONTEXT_FLAGS)};
+        if (!silkworm_recover_address(sender_->bytes, hash.bytes, signature, odd_y_parity, context)) {
+            sender_ = std::nullopt;
+        }
+    });
     return sender_;
 }
 
