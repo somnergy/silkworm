@@ -3,11 +3,16 @@
 
 # project(silkworm LANGUAGES CXX)
 
+if(SP1)
+    add_compile_definitions(-DSP1)
+    include_directories(${CMAKE_SOURCE_DIR}/../guest_program/src/include)
+endif()
+
 
 # Silkworm itself
 add_subdirectory(core)
 add_subdirectory(dev)
 
 if(SILKWORM_WASM_API)
-  add_subdirectory(wasm)
+    add_subdirectory(wasm)
 endif()
