@@ -522,16 +522,18 @@ namespace {
 uint64_t StateTransition::run(uint32_t num_runs) {
     if (blockchain_test_) {
         sys_println("Running blockchain test");
-        const auto result = blockchain_test(test_data_);
-        if (result.failed != 0) {
-            sys_println("Blockchain test failed");
-            return 1;
+
+        for (const auto& [name, test] : base_json_.items()) {
+            sys_print(name.c_str());
+            const auto result = blockchain_test(test);
+            if (result.failed != 0) {
+                sys_println(" FAILED");
+            } else if (result.skipped != 0) {
+                sys_println(" SKIPPED");
+            } else {
+                sys_println(" passed");
+            }
         }
-        if (result.skipped != 0) {
-            sys_println("Blockchain test skipped");
-            return 2;
-        }
-        sys_println("Blockchain test passed");
         return 0;
     }
 
