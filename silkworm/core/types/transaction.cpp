@@ -490,7 +490,8 @@ void UnsignedTransaction::encode_for_signing(Bytes& into) const {
 }
 
 std::optional<evmc::address> Transaction::sender() const {
-    sender_recovered_.call_once([this]() {
+    if (!sender_recovered_) {
+        sender_recovered_ = true;
         Bytes rlp{};
         encode_for_signing(rlp);
         ethash::hash256 hash{keccak256(rlp)};
@@ -504,19 +505,17 @@ std::optional<evmc::address> Transaction::sender() const {
         if (!silkworm_recover_address(sender_->bytes, hash.bytes, signature, odd_y_parity, context)) {
             sender_ = std::nullopt;
         }
-    });
+    }
     return sender_;
 }
 
 void Transaction::set_sender(const evmc::address& sender) {
-    sender_recovered_.reset();
-    sender_recovered_.call_once([&]() {
-        sender_ = sender;
-    });
+    sender_recovered_ = false;
+    sender_ = sender;
 }
 
 void Transaction::reset() {
-    sender_recovered_.reset();
+    sender_recovered_ = false;
     hash_computed_.reset();
 }
 

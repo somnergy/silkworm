@@ -164,7 +164,7 @@ class Transaction : public UnsignedTransaction {
 
   private:
     mutable std::optional<evmc::address> sender_{std::nullopt};
-    mutable ResettableOnceFlag sender_recovered_;
+    mutable bool sender_recovered_ = false;
 
     // cached value for hash if already computed
     mutable evmc::bytes32 cached_hash_;
