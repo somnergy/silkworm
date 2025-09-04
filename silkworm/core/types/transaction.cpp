@@ -501,7 +501,7 @@ std::optional<evmc::address> Transaction::sender() const {
         intx::be::unsafe::store(signature + kHashLength, s);
 
         sender_ = evmc::address{};
-        static secp256k1_context* context{secp256k1_context_create(SILKWORM_SECP256K1_CONTEXT_FLAGS)};
+        static secp256k1_context* context{secp256k1_context_create(SECP256K1_CONTEXT_VERIFY)};
         if (!silkworm_recover_address(sender_->bytes, hash.bytes, signature, odd_y_parity, context)) {
             sender_ = std::nullopt;
         }
