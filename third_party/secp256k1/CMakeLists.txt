@@ -1,7 +1,7 @@
 # Copyright 2025 The Silkworm Authors
 # SPDX-License-Identifier: Apache-2.0
 
-add_library(secp256k1 secp256k1/src/secp256k1.c)
+add_library(secp256k1 secp256k1/src/secp256k1.c secp256k1/src/precomputed_ecmult.c secp256k1/src/precomputed_ecmult_gen.c)
 if(MSVC)
   target_compile_options(secp256k1 PRIVATE /w) # Not much we can do about warnings
 endif()
