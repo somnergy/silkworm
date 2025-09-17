@@ -1,6 +1,12 @@
 # Copyright 2025 The Silkworm Authors
 # SPDX-License-Identifier: Apache-2.0
 
+if(SP1)
+  # FIXME: I'm not sure why this is not propagated from the top-level CMakeLists.txt.
+  add_compile_definitions(-DSP1)
+  include_directories(${CMAKE_SOURCE_DIR}/../guest_program/src/include)
+endif()
+
 if(SILKWORM_WASM_API)
   add_compile_definitions(EVMC_LOADER_MOCK)
 endif()
