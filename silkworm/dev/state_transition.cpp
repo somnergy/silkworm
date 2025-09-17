@@ -528,6 +528,8 @@ uint64_t StateTransition::run(uint32_t num_runs) {
             const auto result = blockchain_test(test);
             if (result.failed != 0) {
                 sys_println(" FAILED");
+                // TODO: Use panic, because syscall_halt() doesn't link.
+                __builtin_trap();
             } else if (result.skipped != 0) {
                 sys_println(" SKIPPED");
             } else {
