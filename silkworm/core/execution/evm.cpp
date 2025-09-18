@@ -51,7 +51,9 @@ EVM::EVM(const Block& block, IntraBlockState& state, const ChainConfig& config) 
       block_{block},
       state_{state},
       config_{config},
-      evm1_{new evmone::VM{}} {}
+      evm1_{new evmone::VM{}} {
+    // evm1_.set_option("trace", "1");
+}
 
 EVM::~EVM() {
     vm_impl().remove_tracers();
