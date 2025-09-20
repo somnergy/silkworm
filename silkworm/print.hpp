@@ -2,6 +2,8 @@
 #pragma once
 #ifdef SP1
 #include "sp1_syscalls.hpp"
+#elif defined(QEMU_DEBUG)
+#include "semihosting.hpp"
 #else
 #include <iostream>
 inline void sys_println(const char* msg) {

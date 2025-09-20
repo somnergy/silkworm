@@ -539,6 +539,7 @@ uint64_t StateTransition::run(uint32_t num_runs) {
         return 0;
     }
 
+    sys_println("Running State transition");
     failed_count_ = 0;
     total_count_ = 0;
     uint64_t total_gas = 0;
@@ -572,6 +573,8 @@ uint64_t StateTransition::run(uint32_t num_runs) {
             txn_validation == ValidationResult::kOk) {
             //============== [TESTING ONLY] SIMULATING MULTIPLE RUNS=====
             for (uint32_t i = 0; i < num_runs; i++) {
+                sys_println("Inside multiple runs loop");
+
                 auto state_cp = read_genesis_allocation(test_data_["pre"]);
                 ExecutionProcessor ccprocessor{block, *rule_set, state_cp, config, true};
                 ccprocessor.execute_transaction(txn, receipt);
