@@ -29,4 +29,6 @@
 	path = third_party/execution-apis
 	url = https://github.com/ethereum/execution-apis.git
 	branch = main
-
+[submodule "ethereum-tests"]
+	path = third_party/ethereum-tests
+	url = https://github.com/ethereum/tests.git
