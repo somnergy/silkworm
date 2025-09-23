@@ -18,7 +18,6 @@ if(SILKWORM_CORE_ONLY)
 endif()
 
 set(SILKWORM_CORE_PUBLIC_LIBS
-    ethash::ethash
     evmc
     evmone
     intx::intx

@@ -10,7 +10,6 @@ set(LIBS_PRIVATE
 
 # cmake-format: off
 set(LIBS_PUBLIC
-    ethash::keccak
     nlohmann_json::nlohmann_json
     silkworm_core
 )

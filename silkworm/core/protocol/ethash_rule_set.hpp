@@ -5,8 +5,6 @@
 
 #include <ostream>
 
-#include <ethash/ethash.hpp>
-
 #include <silkworm/core/protocol/rule_set.hpp>
 
 namespace silkworm::protocol {
@@ -42,7 +40,7 @@ class EthashRuleSet : public RuleSet {
     ValidationResult validate_difficulty_and_seal(const BlockHeader& header, const BlockHeader& parent) override;
 
   private:
-    ethash::epoch_context_ptr epoch_context_{nullptr, ethash_destroy_epoch_context};
+    // ethash::epoch_context_ptr epoch_context_{nullptr, ethash_destroy_epoch_context};
 };
 
 }  // namespace silkworm::protocol

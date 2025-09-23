@@ -5,7 +5,7 @@
 
 #include <string.h>
 
-#include <ethash/keccak.h>
+#include <evmone_precompiles/keccak.h>
 #include <secp256k1_ecdh.h>
 #include <secp256k1_recovery.h>
 

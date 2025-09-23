@@ -3,7 +3,7 @@
 
 #include "bloom.hpp"
 
-#include <ethash/keccak.hpp>
+#include <evmone_precompiles/keccak.hpp>
 
 #include <silkworm/core/common/util.hpp>
 
