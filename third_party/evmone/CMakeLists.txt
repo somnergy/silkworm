@@ -40,11 +40,14 @@ add_library(
   evmone/lib/evmone/tracing.hpp
   evmone/lib/evmone/vm.cpp
   evmone/lib/evmone/vm.hpp
+  evmone/lib/evmone_precompiles/keccak.c
   evmone/lib/evmone_precompiles/blake2b.cpp
   evmone/lib/evmone_precompiles/ripemd160.cpp
   evmone/lib/evmone_precompiles/sha256.cpp
+  evmone/lib/evmone_precompiles/modexp.cpp
   evmone/lib/evmone_precompiles/kzg.cpp
   evmone/lib/evmone_precompiles/bn254.cpp
+  evmone/lib/evmone_precompiles/pairing/bn254/pairing.cpp
   evmone/lib/evmone_precompiles/secp256k1.cpp
   evmone/lib/evmone_precompiles/bls.cpp
   evmone/test/state/host.cpp
@@ -61,7 +64,6 @@ target_include_directories(
 target_link_libraries(
   evmone
   PUBLIC evmc intx::intx blst::blst
-  PRIVATE ethash::keccak
 )
 
 if(MSVC)
