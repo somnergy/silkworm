@@ -17,6 +17,7 @@
 #include <silkworm/core/protocol/param.hpp>
 #include <silkworm/core/types/address.hpp>
 #include <silkworm/core/types/evmc_bytes32.hpp>
+#include <silkworm/core/rlp/decode.hpp>
 
 namespace silkworm {
 
@@ -111,5 +112,109 @@ InMemoryState read_genesis_allocation(const nlohmann::json& alloc) {
     }
     return state;
 }
+
+
+
+// Modified version with proper code handling
+InMemoryState read_pre_state_from_rlp(ByteView rlp_view) {
+    InMemoryState state;
+    auto mega_header{rlp::decode_header(rlp_view)};
+    
+    // Process accounts
+    auto accounts_header{rlp::decode_header(rlp_view)};
+    ByteView accounts_view = rlp_view.substr(0, accounts_header->payload_length);
+    
+    std::unordered_map<evmc::address, uint64_t> address_incarnations;
+    
+    while (!accounts_view.empty()) {
+        auto entry_header{rlp::decode_header(accounts_view)};
+        ByteView entry_payload = accounts_view.substr(0, entry_header->payload_length);
+        evmc::address address;
+        rlp::decode(entry_payload, address);
+
+        auto account_h{rlp::decode_header(entry_payload)};
+        ByteView account_payload = entry_payload.substr(0, account_h->payload_length);
+
+        Account account;
+        // uint64_t nonce;
+        // intx::uint256 balance;
+        // evmc::bytes32 code_hash;
+        // evmc::bytes32 storage_root;
+        
+        rlp::decode(account_payload, account.nonce);
+        rlp::decode(account_payload, account.balance);
+        rlp::decode(account_payload, account.code_hash);
+        rlp::decode(account_payload, account.storage_root_);
+        
+        // account.nonce = nonce;
+        // account.balance = balance;
+        // account.code_hash = code_hash;
+        
+        if (account.code_hash != kEmptyHash) {
+            account.incarnation = kDefaultIncarnation;
+            address_incarnations[address] = account.incarnation;
+            
+            // // Update code if available
+            // auto it = code_map.find(code_hash);
+            // if (it != code_map.end()) {
+            //     state.update_account_code(address, account.incarnation, code_hash, it->second);
+            // }
+        }
+        
+        state.update_account(address, /*initial=*/std::nullopt, account);
+        accounts_view.remove_prefix(entry_header->payload_length);
+    }
+    rlp_view.remove_prefix(accounts_header->payload_length);
+
+    // Process storage
+    auto storage_header{rlp::decode_header(rlp_view)};
+    ByteView storage_view = rlp_view.substr(0, storage_header->payload_length);
+    
+    while (!storage_view.empty()) {
+        auto entry_header{rlp::decode_header(storage_view)};
+        ByteView entry_payload = storage_view.substr(0, entry_header->payload_length);
+        evmc::address address;
+        rlp::decode(entry_payload, address);
+        
+        uint64_t incarnation = address_incarnations[address];
+        
+        auto kvs_header{rlp::decode_header(entry_payload)};
+        ByteView kvs_view = entry_payload.substr(0, kvs_header->payload_length);
+        
+        while (!kvs_view.empty()) {
+            auto kv_header{rlp::decode_header(kvs_view)};
+            ByteView kv_payload = kvs_view.substr(0, kv_header->payload_length);
+            intx::uint256 key, value;
+            rlp::decode(kv_payload, key);
+            rlp::decode(kv_payload, value);
+            
+            evmc::bytes32 key32 = intx::be::store<evmc::bytes32>(key);
+            evmc::bytes32 value32 = intx::be::store<evmc::bytes32>(value);
+            
+            state.update_storage(address, incarnation, key32, /*initial=*/{}, value32);
+        }
+    }
+    rlp_view.remove_prefix(storage_header->payload_length);
+
+
+    auto codes_header{rlp::decode_header(rlp_view)};
+    ByteView codes_view = rlp_view.substr(0, codes_header -> payload_length);
+    evmc::address address{};
+    while (!codes_view.empty()) {
+        auto entry_header{rlp::decode_header(codes_view)};
+        ByteView entry_payload = codes_view.substr(0, entry_header->payload_length);
+        
+        evmc::bytes32 code_hash;
+        Bytes code;
+        
+        rlp::decode(entry_payload, code_hash);
+        rlp::decode(entry_payload, code);
+        
+        state.update_account_code(address, 0, code_hash, code);
+    }
+    
+    return state;
+}
+
 
 }  // namespace silkworm

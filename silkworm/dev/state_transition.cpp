@@ -49,11 +49,27 @@ StateTransition::StateTransition(const std::string& json_str, const bool termina
     base_json_ = nlohmann::json::parse(json_str);
     auto test_object = base_json_.begin();
     test_name_ = test_object.key();
-    blockchain_test_ = test_object->contains("_info") && test_object->contains("blocks");
+    // blockchain_test_ = test_object->contains("_info") && test_object->contains("blocks");
+    blockchain_test_ = true;
     if (blockchain_test_) {
         sys_println("Blockchain test detected");
     }
     test_data_ = test_object.value();
+}
+
+
+StateTransition::StateTransition(const std::string& unified_rlp_str) noexcept
+{
+    sys_println("StateTransition::StateTransition");
+
+    // Redirect std::cout and std::cerr to out_stream_ for capturing output.
+    std::cout.rdbuf(out_stream_.rdbuf());
+    std::cerr.rdbuf(out_stream_.rdbuf());
+
+    // unified_rlp_ = from_hex(unified_rlp_str).value_or(Bytes{});
+    
+    // Read from binary 
+    unified_rlp_ = ByteView{reinterpret_cast<const uint8_t*>(unified_rlp_str.data()), unified_rlp_str.size()};
 }
 
 StateTransition::StateTransition(const bool terminate_on_error, const bool show_diagnostics) noexcept
@@ -334,9 +350,8 @@ namespace {
         kSkipped
     };
 
-    Status run_block(const nlohmann::json& json_block, Blockchain& blockchain) {
+    Status run_json_block(const nlohmann::json& json_block, Blockchain& blockchain){
         bool invalid{json_block.contains("expectException")};
-
         std::optional<Bytes> rlp{from_hex(json_block["rlp"].get<std::string>())};
         if (!rlp) {
             if (invalid) {
@@ -481,8 +496,8 @@ namespace {
             std::cout << "unknown network " << network << std::endl;
             return Status::kSkipped;
         }
-
-        Bytes genesis_rlp{from_hex(json_test["genesisRLP"].get<std::string>()).value()};
+        auto genesisRLPStr = json_test["genesisRLP"].get<std::string>();
+        Bytes genesis_rlp{from_hex(genesisRLPStr).value()};
         ByteView genesis_view{genesis_rlp};
         Block genesis_block;
         if (!rlp::decode(genesis_view, genesis_block)) {
@@ -495,7 +510,7 @@ namespace {
         // blockchain.exo_evm = exo_evm;
 
         for (const auto& json_block : json_test["blocks"]) {
-            Status status{run_block(json_block, blockchain)};
+            Status status{run_json_block(json_block, blockchain)};
             if (status != Status::kPassed) {
                 return status;
             }
@@ -519,8 +534,73 @@ namespace {
     }
 }  // namespace
 
-uint64_t StateTransition::run(uint32_t num_runs) {
-    if (blockchain_test_) {
+uint64_t StateTransition::run_rlp() {
+    Block genesisBlock, block;
+    ByteView pre_state_rlp;
+    const auto rlp_head{rlp::decode_header(unified_rlp_)};
+    if (!rlp_head || !rlp_head -> list) {
+        sys_println("ERROR: Failed to Decode unified_rlp");
+        return 0;
+    }
+    
+    // Decode Genesis Block
+    ByteView payload_view = unified_rlp_.substr(0, rlp_head->payload_length);
+    if (payload_view.empty()) {
+        sys_println("ERROR: Failed to Decode unified_rlp");
+        return 0;
+    }
+    auto genesis_header = rlp::decode_header(payload_view);
+    if (!genesis_header) {
+        sys_println("ERROR: Failed to Decode Genesis Block RLP");
+        return 0;
+    }
+    ByteView genesis_payload = payload_view.substr(0, genesis_header->payload_length);
+    if (!rlp::decode(genesis_payload, genesisBlock)){
+        sys_println("ERROR: Failed to Decode Genesis Block RLP");
+        return 0;
+    }
+    payload_view.remove_prefix(genesis_header->payload_length);
+
+
+    if (payload_view.empty()) {
+        sys_println("ERROR: Failed to Decode Block RLP");
+        return 0;
+    }
+    auto block_header = rlp::decode_header(payload_view);
+    if (!block_header) {
+        sys_println("ERROR: Failed to Decode Block RLP");
+        return 0;
+    }
+    ByteView block_payload = payload_view.substr(0, block_header->payload_length);
+    if (!rlp::decode(block_payload, block)){
+        sys_println("ERROR: Failed to Decode Genesis Block RLP");
+        return 0;
+    }
+    payload_view.remove_prefix(block_header->payload_length);
+
+    auto pre_rlp_head = rlp::decode_header(payload_view);
+    if (!pre_rlp_head) {
+        sys_println("ERROR: Failed to Decode Pre-State RLP");
+        return 0;
+    }
+    ByteView pre_rlp_payload = payload_view.substr(0, pre_rlp_head->payload_length);
+    InMemoryState state{read_pre_state_from_rlp(pre_rlp_payload)};
+    payload_view.remove_prefix(pre_rlp_head->payload_length);
+
+    auto config{test::kNetworkConfig.find("Prague") -> second};
+    Blockchain blockchain{state, config, genesisBlock};
+
+    if (ValidationResult err{blockchain.insert_block(block, false)}; err != ValidationResult::kOk) {
+        std::cout << "Validation error " << static_cast<int>(err) << std::endl;
+        return 0;
+    }
+    sys_println("OUT dump:");
+    sys_println(out_stream_.str().c_str());
+    return block.header.gas_used;
+}
+
+uint64_t StateTransition::run(uint32_t num_runs, bool is_test) {
+    if (is_test) {
         sys_println("Running blockchain test");
 
         for (const auto& [name, test] : base_json_.items()) {
@@ -539,7 +619,8 @@ uint64_t StateTransition::run(uint32_t num_runs) {
         return 0;
     }
 
-    sys_println("Running State transition");
+    auto msg = "Running State transition. num_runs=" + std::to_string(num_runs);
+    sys_println(msg.c_str());
     failed_count_ = 0;
     total_count_ = 0;
     uint64_t total_gas = 0;

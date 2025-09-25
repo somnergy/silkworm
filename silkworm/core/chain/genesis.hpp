@@ -25,4 +25,5 @@ BlockHeader read_genesis_header(const nlohmann::json& genesis, const evmc::bytes
 
 InMemoryState read_genesis_allocation(const nlohmann::json& alloc);
 
+InMemoryState read_pre_state_from_rlp(ByteView rlp_view);
 }  // namespace silkworm

@@ -21,6 +21,7 @@ class StateTransition {
     bool blockchain_test_{false};
     nlohmann::json base_json_;
     nlohmann::json test_data_;
+    ByteView unified_rlp_;
     std::string test_name_;
     unsigned total_count_{};
     unsigned failed_count_{};
@@ -36,7 +37,7 @@ class StateTransition {
   public:
     explicit StateTransition(const std::string& json_str, bool terminate_on_error, bool show_diagnostics) noexcept;
     explicit StateTransition(const bool terminate_on_error, const bool show_diagnostics) noexcept;
-
+    explicit StateTransition(const std::string& unified_rlp_str) noexcept;
     // std::string name();
     std::string get_env(const std::string& key);
     bool contains_env(const std::string& key);
@@ -51,7 +52,8 @@ class StateTransition {
     Transaction get_txn_from_sub_state(const ExpectedSubState& expected_state);
     // Transaction get_transaction(const ExpectedSubState& expected_sub_state);
     void validate_transition(const Receipt& receipt, const ExpectedState& expected_state, const ExpectedSubState& expected_sub_state, const InMemoryState& state);
-    uint64_t run(uint32_t num_runs);
+    uint64_t run(uint32_t num_runs, bool blockchain_test);
+    uint64_t run_rlp();
 };
 
 }  // namespace silkworm::cmd::state_transition
