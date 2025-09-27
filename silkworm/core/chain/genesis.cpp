@@ -125,10 +125,6 @@ InMemoryState read_pre_state_from_rlp(ByteView rlp_view) {
 
     ByteView payload_view = rlp_view.substr(0, mega_header -> payload_length);
 
-    // auto acc_rlp_h{rlp::decode_header(payload_view)};
-    //  if (!acc_rlp_h){
-    //     sys_println("Invalid account rlp string");
-    // }
     // Process accounts
     auto accounts_header{rlp::decode_header(payload_view)}; // List of accounts
     if (!accounts_header || !accounts_header -> list) {
@@ -185,8 +181,6 @@ InMemoryState read_pre_state_from_rlp(ByteView rlp_view) {
         // sys_println(to_hex(entry_payload).c_str());
         evmc::address address;
         rlp::decode(entry_payload, address);
-        sys_println(" - Address:");
-        sys_println(address_to_hex(address).c_str());
         uint64_t incarnation = address_incarnations[address];
         
         // Decode [k,v,k,v,...]

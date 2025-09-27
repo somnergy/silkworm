@@ -509,7 +509,7 @@ std::optional<evmc::address> Transaction::sender() const {
 }
 
 void Transaction::set_sender(const evmc::address& sender) {
-    sender_recovered_ = false;
+    sender_recovered_ = true;
     sender_ = sender;
 }
 

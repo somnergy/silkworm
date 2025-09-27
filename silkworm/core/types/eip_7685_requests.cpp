@@ -9,6 +9,7 @@
 #include <silkworm/core/protocol/param.hpp>
 #include <silkworm/core/rlp/decode_vector.hpp>
 #include <silkworm/core/types/address.hpp>
+#include <silkworm/print.hpp>
 
 namespace silkworm {
 
@@ -73,6 +74,7 @@ Hash FlatRequests::calculate_sha256() const {
             to_sha.push_back(request_type);
             to_sha.append(requests_[request_type]);
             intermediate.append(precompile::sha256_run(ByteView{to_sha}).value());
+            sys_println(to_hex(ByteView{to_sha}).c_str());
         }
     }
     const auto final_bytes = precompile::sha256_run(intermediate).value();

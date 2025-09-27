@@ -10,6 +10,7 @@
 #include <silkworm/core/execution/evm.hpp>
 #include <silkworm/core/rlp/encode_vector.hpp>
 #include <silkworm/core/trie/vector_root.hpp>
+#include <silkworm/print.hpp>
 
 #include "intrinsic_gas.hpp"
 #include "param.hpp"
@@ -336,6 +337,8 @@ ValidationResult validate_requests_root(const BlockHeader& header, const std::ve
 
     // Withdrawal requests
     {
+        sys_println("Code at kWithdrawalRequestAddress:");
+        sys_println(to_hex(evm.state().get_code(kWithdrawalRequestAddress)).c_str());
         Transaction system_txn{};
         system_txn.type = TransactionType::kSystem;
         system_txn.to = kWithdrawalRequestAddress;
@@ -344,10 +347,12 @@ ValidationResult validate_requests_root(const BlockHeader& header, const std::ve
         const auto withdrawals = evm.execute(system_txn, kSystemCallGasLimit);
         evm.state().destruct_touched_dead();
         requests.add_request(FlatRequestType::kWithdrawalRequest, withdrawals.data);
+        sys_println(to_hex(ByteView{withdrawals.data}).c_str());
     }
-
     // Consolidation requests
     {
+        sys_println("Code at kConsolidationRequestAddress:");
+        sys_println(to_hex(evm.state().get_code(kConsolidationRequestAddress)).c_str());
         Transaction system_txn{};
         system_txn.type = TransactionType::kSystem;
         system_txn.to = kConsolidationRequestAddress;
@@ -356,6 +361,8 @@ ValidationResult validate_requests_root(const BlockHeader& header, const std::ve
         const auto consolidations = evm.execute(system_txn, kSystemCallGasLimit);
         evm.state().destruct_touched_dead();
         requests.add_request(FlatRequestType::kConsolidationRequest, consolidations.data);
+        sys_println(reinterpret_cast<const char*> (consolidations.data.c_str()));
+
     }
 
     const auto computed_hash = requests.calculate_sha256();
