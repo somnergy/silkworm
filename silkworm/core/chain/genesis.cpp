@@ -18,7 +18,7 @@
 #include <silkworm/core/types/address.hpp>
 #include <silkworm/core/types/evmc_bytes32.hpp>
 #include <silkworm/core/rlp/decode.hpp>
-
+#include <silkworm/print.hpp>
 namespace silkworm {
 
 std::string_view read_genesis_data(ChainId chain_id) {
@@ -119,36 +119,38 @@ InMemoryState read_genesis_allocation(const nlohmann::json& alloc) {
 InMemoryState read_pre_state_from_rlp(ByteView rlp_view) {
     InMemoryState state;
     auto mega_header{rlp::decode_header(rlp_view)};
-    
+    if (!mega_header || !mega_header -> list){
+        sys_println("Invalid mega_header");
+    }
+
+    ByteView payload_view = rlp_view.substr(0, mega_header -> payload_length);
+
+    // auto acc_rlp_h{rlp::decode_header(payload_view)};
+    //  if (!acc_rlp_h){
+    //     sys_println("Invalid account rlp string");
+    // }
     // Process accounts
-    auto accounts_header{rlp::decode_header(rlp_view)};
-    ByteView accounts_view = rlp_view.substr(0, accounts_header->payload_length);
+    auto accounts_header{rlp::decode_header(payload_view)}; // List of accounts
+    if (!accounts_header || !accounts_header -> list) {
+        sys_println("Invalid accounts_header");
+    }
+    ByteView accounts_view = payload_view.substr(0, accounts_header->payload_length);
     
     std::unordered_map<evmc::address, uint64_t> address_incarnations;
     
     while (!accounts_view.empty()) {
         auto entry_header{rlp::decode_header(accounts_view)};
-        ByteView entry_payload = accounts_view.substr(0, entry_header->payload_length);
+        if (!entry_header || !entry_header -> list ){
+            sys_println("Invalid accounts_header");
+        }
+        ByteView acc_items_list = accounts_view.substr(0, entry_header->payload_length);
         evmc::address address;
-        rlp::decode(entry_payload, address);
-
-        auto account_h{rlp::decode_header(entry_payload)};
-        ByteView account_payload = entry_payload.substr(0, account_h->payload_length);
-
         Account account;
-        // uint64_t nonce;
-        // intx::uint256 balance;
-        // evmc::bytes32 code_hash;
-        // evmc::bytes32 storage_root;
-        
-        rlp::decode(account_payload, account.nonce);
-        rlp::decode(account_payload, account.balance);
-        rlp::decode(account_payload, account.code_hash);
-        rlp::decode(account_payload, account.storage_root_);
-        
-        // account.nonce = nonce;
-        // account.balance = balance;
-        // account.code_hash = code_hash;
+        rlp::decode(acc_items_list, address);
+        rlp::decode(acc_items_list, account.nonce);
+        rlp::decode(acc_items_list, account.balance);
+        rlp::decode(acc_items_list, account.code_hash);
+        rlp::decode(acc_items_list, account.storage_root_);
         
         if (account.code_hash != kEmptyHash) {
             account.incarnation = kDefaultIncarnation;
@@ -164,51 +166,70 @@ InMemoryState read_pre_state_from_rlp(ByteView rlp_view) {
         state.update_account(address, /*initial=*/std::nullopt, account);
         accounts_view.remove_prefix(entry_header->payload_length);
     }
-    rlp_view.remove_prefix(accounts_header->payload_length);
+    payload_view.remove_prefix(accounts_header->payload_length);
 
     // Process storage
-    auto storage_header{rlp::decode_header(rlp_view)};
-    ByteView storage_view = rlp_view.substr(0, storage_header->payload_length);
+    auto storage_header{rlp::decode_header(payload_view)};
+    if (!storage_header || !storage_header -> list) {
+        sys_println("Invalid storage_header");
+    }
+    ByteView storage_view = payload_view.substr(0, storage_header->payload_length);
     
     while (!storage_view.empty()) {
         auto entry_header{rlp::decode_header(storage_view)};
+        if (!entry_header || !entry_header -> list) {
+            sys_println("Invalid storage entry_header");
+        }
         ByteView entry_payload = storage_view.substr(0, entry_header->payload_length);
+        // sys_println("Storage entry:");
+        // sys_println(to_hex(entry_payload).c_str());
         evmc::address address;
         rlp::decode(entry_payload, address);
-        
+        sys_println(" - Address:");
+        sys_println(address_to_hex(address).c_str());
         uint64_t incarnation = address_incarnations[address];
         
+        // Decode [k,v,k,v,...]
         auto kvs_header{rlp::decode_header(entry_payload)};
+        if (!kvs_header || !kvs_header->list){
+            sys_println("Invalid kvs_header");
+        }
         ByteView kvs_view = entry_payload.substr(0, kvs_header->payload_length);
         
         while (!kvs_view.empty()) {
-            auto kv_header{rlp::decode_header(kvs_view)};
-            ByteView kv_payload = kvs_view.substr(0, kv_header->payload_length);
             intx::uint256 key, value;
-            rlp::decode(kv_payload, key);
-            rlp::decode(kv_payload, value);
-            
+            if (!rlp::decode(kvs_view, key, rlp::Leftover::kAllow)){
+                sys_println("Failed to decode kv_key");
+            }
+            if(!rlp::decode(kvs_view, value, rlp::Leftover::kAllow)){
+                sys_println("Failed to decode kv_value");
+            }        
             evmc::bytes32 key32 = intx::be::store<evmc::bytes32>(key);
             evmc::bytes32 value32 = intx::be::store<evmc::bytes32>(value);
             
             state.update_storage(address, incarnation, key32, /*initial=*/{}, value32);
         }
+        storage_view.remove_prefix(entry_header -> payload_length);
     }
-    rlp_view.remove_prefix(storage_header->payload_length);
+    payload_view.remove_prefix(storage_header->payload_length);
 
 
-    auto codes_header{rlp::decode_header(rlp_view)};
-    ByteView codes_view = rlp_view.substr(0, codes_header -> payload_length);
+    auto codes_header{rlp::decode_header(payload_view)};
+    ByteView codes_view = payload_view.substr(0, codes_header -> payload_length);
     evmc::address address{};
     while (!codes_view.empty()) {
-        auto entry_header{rlp::decode_header(codes_view)};
-        ByteView entry_payload = codes_view.substr(0, entry_header->payload_length);
+        // auto entry_header{rlp::decode_header(codes_view)};
+        // ByteView entry_payload = codes_view.substr(0, entry_header->payload_length);
         
         evmc::bytes32 code_hash;
         Bytes code;
         
-        rlp::decode(entry_payload, code_hash);
-        rlp::decode(entry_payload, code);
+        if (!rlp::decode(codes_view, code_hash, rlp::Leftover::kAllow)){
+            sys_println("Failed to decode code_hash from codes_view");
+        }
+        if (!rlp::decode(codes_view, code, rlp::Leftover::kAllow)){
+            sys_println("Failed to decode code from codes_view");
+        }
         
         state.update_account_code(address, 0, code_hash, code);
     }
