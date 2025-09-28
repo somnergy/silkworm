@@ -345,7 +345,6 @@ ValidationResult validate_requests_root(const BlockHeader& header, const std::ve
         const auto withdrawals = evm.execute(system_txn, kSystemCallGasLimit);
         evm.state().destruct_touched_dead();
         requests.add_request(FlatRequestType::kWithdrawalRequest, withdrawals.data);
-        sys_println(to_hex(ByteView{withdrawals.data}).c_str());
     }
     // Consolidation requests
     {
@@ -357,8 +356,6 @@ ValidationResult validate_requests_root(const BlockHeader& header, const std::ve
         const auto consolidations = evm.execute(system_txn, kSystemCallGasLimit);
         evm.state().destruct_touched_dead();
         requests.add_request(FlatRequestType::kConsolidationRequest, consolidations.data);
-        sys_println(reinterpret_cast<const char*> (consolidations.data.c_str()));
-
     }
 
     const auto computed_hash = requests.calculate_sha256();

@@ -547,9 +547,11 @@ namespace {
 }  // namespace
 
 uint64_t StateTransition::run_rlp() {
+    sys_println(("run_rlp: Unified RLP length: " + std::to_string(unified_rlp_.size())).c_str());
+    
     Block genesisBlock, block;
     ByteView pre_state_rlp;
-    sys_println(("run_rlp: Unified RLP length: " + std::to_string(unified_rlp_.size())).c_str());
+
     const auto rlp_head{rlp::decode_header(unified_rlp_)};
     if (!rlp_head ) {
         sys_println("ERROR: Failed to Decode unified_rlp overall header");
