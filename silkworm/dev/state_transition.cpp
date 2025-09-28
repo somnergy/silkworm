@@ -592,10 +592,10 @@ uint64_t StateTransition::run_rlp() {
 
     if (ValidationResult err{blockchain.insert_block(block, false)}; err != ValidationResult::kOk) {
         std::cout << "Validation error " << static_cast<int>(err) << std::endl;
+        sys_println(out_stream_.str().c_str());
         return 0;
     }
-    sys_println("OUT dump:");
-    sys_println(out_stream_.str().c_str());
+
     return block.header.gas_used;
 }
 

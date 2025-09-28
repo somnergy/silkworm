@@ -337,8 +337,6 @@ ValidationResult validate_requests_root(const BlockHeader& header, const std::ve
 
     // Withdrawal requests
     {
-        sys_println("Code at kWithdrawalRequestAddress:");
-        sys_println(to_hex(evm.state().get_code(kWithdrawalRequestAddress)).c_str());
         Transaction system_txn{};
         system_txn.type = TransactionType::kSystem;
         system_txn.to = kWithdrawalRequestAddress;
@@ -351,8 +349,6 @@ ValidationResult validate_requests_root(const BlockHeader& header, const std::ve
     }
     // Consolidation requests
     {
-        sys_println("Code at kConsolidationRequestAddress:");
-        sys_println(to_hex(evm.state().get_code(kConsolidationRequestAddress)).c_str());
         Transaction system_txn{};
         system_txn.type = TransactionType::kSystem;
         system_txn.to = kConsolidationRequestAddress;
