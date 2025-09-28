@@ -38,6 +38,7 @@ class StateTransition {
     explicit StateTransition(const std::string& json_str, bool terminate_on_error, bool show_diagnostics) noexcept;
     explicit StateTransition(const bool terminate_on_error, const bool show_diagnostics) noexcept;
     explicit StateTransition(const std::string& unified_rlp_str) noexcept;
+    explicit StateTransition(ByteView& unified_rlp) noexcept;
     // std::string name();
     std::string get_env(const std::string& key);
     bool contains_env(const std::string& key);

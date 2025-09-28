@@ -57,6 +57,16 @@ StateTransition::StateTransition(const std::string& json_str, const bool termina
     test_data_ = test_object.value();
 }
 
+StateTransition::StateTransition(ByteView& unified_rlp) noexcept 
+    : unified_rlp_{unified_rlp}
+{
+    sys_println("StateTransition::StateTransition");
+
+    // Redirect std::cout and std::cerr to out_stream_ for capturing output.
+    std::cout.rdbuf(out_stream_.rdbuf());
+    std::cerr.rdbuf(out_stream_.rdbuf());
+}
+
 
 StateTransition::StateTransition(const std::string& unified_rlp_str) noexcept
 {
@@ -70,6 +80,8 @@ StateTransition::StateTransition(const std::string& unified_rlp_str) noexcept
     
     // Read from binary 
     unified_rlp_ = ByteView{reinterpret_cast<const uint8_t*>(unified_rlp_str.data()), unified_rlp_str.size()};
+    std::string msg = "in ctor unified_rlp_str RLP length: " + std::to_string(unified_rlp_str.size()) + " unified_rlp_ RLP length: " + std::to_string(unified_rlp_.size());
+    sys_println(msg.c_str());
 }
 
 StateTransition::StateTransition(const bool terminate_on_error, const bool show_diagnostics) noexcept
@@ -537,16 +549,21 @@ namespace {
 uint64_t StateTransition::run_rlp() {
     Block genesisBlock, block;
     ByteView pre_state_rlp;
+    sys_println(("run_rlp: Unified RLP length: " + std::to_string(unified_rlp_.size())).c_str());
     const auto rlp_head{rlp::decode_header(unified_rlp_)};
-    if (!rlp_head || !rlp_head -> list) {
-        sys_println("ERROR: Failed to Decode unified_rlp");
+    if (!rlp_head ) {
+        sys_println("ERROR: Failed to Decode unified_rlp overall header");
+        return 0;
+    }
+    if (!rlp_head -> list) {
+        sys_println(("ERROR: Failed to Decode unified_rlp: Not list. Payload length: " + std::to_string(rlp_head->payload_length)).c_str());
         return 0;
     }
     
     // Decode Genesis Block
     ByteView payload_view = unified_rlp_.substr(0, rlp_head->payload_length);
     if (payload_view.empty()) {
-        sys_println("ERROR: Failed to Decode unified_rlp");
+        sys_println("ERROR: Failed to Decode unified_rlp payload view");
         return 0;
     }
     auto genesis_header = rlp::decode_header(payload_view);
