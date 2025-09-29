@@ -31,7 +31,7 @@ namespace silkworm::cmd::state_transition {
 StateTransition::StateTransition(const std::string& json_str, const bool terminate_on_error, const bool show_diagnostics) noexcept
     : terminate_on_error_{terminate_on_error},
       show_diagnostics_{show_diagnostics} {
-    sys_println("StateTransition::StateTransition");
+    sys_println("StateTransition ctor with string");
 
     // Redirect std::cout and std::cerr to out_stream_ for capturing output.
     std::cout.rdbuf(out_stream_.rdbuf());
@@ -45,7 +45,6 @@ StateTransition::StateTransition(const std::string& json_str, const bool termina
     // Test the captured output dump.
     sys_println("OUT dump:");
     sys_println(out_stream_.str().c_str());
-
     base_json_ = nlohmann::json::parse(json_str);
     auto test_object = base_json_.begin();
     test_name_ = test_object.key();
