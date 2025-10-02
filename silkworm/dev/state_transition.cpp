@@ -8,6 +8,7 @@
 #include <iostream>
 #include <stdexcept>
 
+#include <magic_enum.hpp>
 #include <nlohmann/json.hpp>
 
 #include <silkworm/core/chain/genesis.hpp>
@@ -56,9 +57,8 @@ StateTransition::StateTransition(const std::string& json_str, const bool termina
     test_data_ = test_object.value();
 }
 
-StateTransition::StateTransition(ByteView& unified_rlp) noexcept 
-    : unified_rlp_{unified_rlp}
-{
+StateTransition::StateTransition(ByteView& unified_rlp) noexcept
+    : unified_rlp_{unified_rlp} {
     sys_println("StateTransition::StateTransition");
 
     // Redirect std::cout and std::cerr to out_stream_ for capturing output.
@@ -66,9 +66,7 @@ StateTransition::StateTransition(ByteView& unified_rlp) noexcept
     std::cerr.rdbuf(out_stream_.rdbuf());
 }
 
-
-StateTransition::StateTransition(const std::string& unified_rlp_str) noexcept
-{
+StateTransition::StateTransition(const std::string& unified_rlp_str) noexcept {
     sys_println("StateTransition::StateTransition");
 
     // Redirect std::cout and std::cerr to out_stream_ for capturing output.
@@ -76,8 +74,8 @@ StateTransition::StateTransition(const std::string& unified_rlp_str) noexcept
     std::cerr.rdbuf(out_stream_.rdbuf());
 
     // unified_rlp_ = from_hex(unified_rlp_str).value_or(Bytes{});
-    
-    // Read from binary 
+
+    // Read from binary
     unified_rlp_ = ByteView{reinterpret_cast<const uint8_t*>(unified_rlp_str.data()), unified_rlp_str.size()};
     std::string msg = "in ctor unified_rlp_str RLP length: " + std::to_string(unified_rlp_str.size()) + " unified_rlp_ RLP length: " + std::to_string(unified_rlp_.size());
     sys_println(msg.c_str());
@@ -361,7 +359,7 @@ namespace {
         kSkipped
     };
 
-    Status run_json_block(const nlohmann::json& json_block, Blockchain& blockchain){
+    Status run_json_block(const nlohmann::json& json_block, Blockchain& blockchain) {
         bool invalid{json_block.contains("expectException")};
         std::optional<Bytes> rlp{from_hex(json_block["rlp"].get<std::string>())};
         if (!rlp) {
@@ -547,20 +545,20 @@ namespace {
 
 uint64_t StateTransition::run_rlp() {
     sys_println(("run_rlp: Unified RLP length: " + std::to_string(unified_rlp_.size())).c_str());
-    
+
     Block genesisBlock, block;
     ByteView pre_state_rlp;
 
     const auto rlp_head{rlp::decode_header(unified_rlp_)};
-    if (!rlp_head ) {
+    if (!rlp_head) {
         sys_println("ERROR: Failed to Decode unified_rlp overall header");
         return 0;
     }
-    if (!rlp_head -> list) {
+    if (!rlp_head->list) {
         sys_println(("ERROR: Failed to Decode unified_rlp: Not list. Payload length: " + std::to_string(rlp_head->payload_length)).c_str());
         return 0;
     }
-    
+
     // Decode Genesis Block
     ByteView payload_view = unified_rlp_.substr(0, rlp_head->payload_length);
     if (payload_view.empty()) {
@@ -573,12 +571,11 @@ uint64_t StateTransition::run_rlp() {
         return 0;
     }
     ByteView genesis_payload = payload_view.substr(0, genesis_header->payload_length);
-    if (!rlp::decode(genesis_payload, genesisBlock)){
+    if (!rlp::decode(genesis_payload, genesisBlock)) {
         sys_println("ERROR: Failed to Decode Genesis Block RLP");
         return 0;
     }
     payload_view.remove_prefix(genesis_header->payload_length);
-
 
     if (payload_view.empty()) {
         sys_println("ERROR: Failed to Decode Block RLP");
@@ -590,7 +587,7 @@ uint64_t StateTransition::run_rlp() {
         return 0;
     }
     ByteView block_payload = payload_view.substr(0, block_header->payload_length);
-    if (!rlp::decode(block_payload, block)){
+    if (!rlp::decode(block_payload, block)) {
         sys_println("ERROR: Failed to Decode Genesis Block RLP");
         return 0;
     }
@@ -605,11 +602,29 @@ uint64_t StateTransition::run_rlp() {
     InMemoryState state{read_pre_state_from_rlp(pre_rlp_payload)};
     payload_view.remove_prefix(pre_rlp_head->payload_length);
 
-    auto config{test::kNetworkConfig.find("Prague") -> second};
+    auto headers_overall_rlp_header = rlp::decode_header(payload_view);
+    if (headers_overall_rlp_header) {  // Skip invalid headers list rlp
+        auto headers_list_header = rlp::decode_header(payload_view);
+        if (!headers_list_header || !headers_list_header->list) {
+            sys_println("Invalid headers list entry");
+        } else {
+            ByteView headers_list_view = payload_view.substr(0, headers_list_header->payload_length);
+            while (!headers_list_view.empty()) {
+                auto entry_header{rlp::decode_header(headers_list_view)};
+                ByteView hh_view = headers_list_view.substr(0, entry_header -> payload_length);
+                Block bb;
+                rlp::decode(hh_view, bb.header);
+                state.insert_block(bb, bb.header.hash());
+                headers_list_view.remove_prefix(entry_header -> payload_length);
+            }
+        }
+    }
+
+    auto config{test::kNetworkConfig.find("Prague")->second};
     Blockchain blockchain{state, config, genesisBlock};
 
     if (ValidationResult err{blockchain.insert_block(block, false)}; err != ValidationResult::kOk) {
-        std::cout << "Validation error " << static_cast<int>(err) << std::endl;
+        std::cout << "Validation error " << magic_enum::enum_name<ValidationResult>(err) << std::endl;
         sys_println(out_stream_.str().c_str());
         return 0;
     }
