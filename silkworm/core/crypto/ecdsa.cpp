@@ -3,10 +3,9 @@
 
 #include "ecdsa.h"
 
-#include <string.h>
-
 #include <evmone_precompiles/keccak.h>
 #include <secp256k1_recovery.h>
+#include <cstring>
 
 //! \brief Tries recover public key used for message signing.
 static bool recover(uint8_t public_key[65], const uint8_t message[32], const uint8_t signature[64], uint8_t recovery_id,
@@ -34,7 +33,7 @@ static bool public_key_to_address(uint8_t out[20], const uint8_t public_key[65])
     }
     // Ignore first byte of public key
     const union ethash_hash256 key_hash = ethash_keccak256(public_key + 1, 64);
-    memcpy(out, &key_hash.bytes[12], 20);
+    std::memcpy(out, &key_hash.bytes[12], 20);
     return true;
 }
 
