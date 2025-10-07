@@ -12,7 +12,7 @@
 #include <string_view>
 #include <vector>
 
-#include <ethash/keccak.hpp>
+#include <evmone_precompiles/keccak.hpp>
 #include <intx/intx.hpp>
 
 #include <silkworm/core/common/base.hpp>

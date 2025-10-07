@@ -68,10 +68,10 @@ inline constexpr std::optional<SupportedContract> kContracts[]{
     SupportedContract{{sha256_gas, sha256_run}, EVMC_FRONTIER},                    // 0x02
     SupportedContract{{rip160_gas, rip160_run}, EVMC_FRONTIER},                    // 0x03
     SupportedContract{{id_gas, id_run}, EVMC_FRONTIER},                            // 0x04
-    SupportedContract{{expmod_gas, expmod_run}, EVMC_BYZANTIUM},                   // 0x05
-    SupportedContract{{bn_add_gas, bn_add_run}, EVMC_BYZANTIUM},                   // 0x06
-    SupportedContract{{bn_mul_gas, bn_mul_run}, EVMC_BYZANTIUM},                   // 0x07
-    SupportedContract{{snarkv_gas, snarkv_run}, EVMC_BYZANTIUM},                   // 0x08
+    SupportedContract{{expmod_gas, nullptr}, EVMC_BYZANTIUM},                   // 0x05
+    SupportedContract{{nullptr, nullptr}, EVMC_BYZANTIUM},                   // 0x06
+    SupportedContract{{nullptr, nullptr}, EVMC_BYZANTIUM},                   // 0x07
+    SupportedContract{{nullptr, nullptr}, EVMC_BYZANTIUM},                   // 0x08
     SupportedContract{{blake2_f_gas, blake2_f_run}, EVMC_ISTANBUL},                // 0x09
     SupportedContract{{point_evaluation_gas, point_evaluation_run}, EVMC_CANCUN},  // 0x0a
 };

@@ -7,7 +7,7 @@
 #include <cstring>
 #include <span>
 
-#include <ethash/keccak.hpp>
+#include <evmone_precompiles/keccak.hpp>
 
 #include <silkworm/core/common/assert.hpp>
 #include <silkworm/core/common/empty_hashes.hpp>

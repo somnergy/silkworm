@@ -18,7 +18,6 @@ if(SILKWORM_CORE_ONLY)
 endif()
 
 set(SILKWORM_CORE_PUBLIC_LIBS
-    ethash::ethash
     evmc
     evmone
     intx::intx
@@ -28,7 +27,7 @@ set(SILKWORM_CORE_PUBLIC_LIBS
     secp256k1
     tl::expected
 )
-set(SILKWORM_CORE_PRIVATE_LIBS ff blst::blst)
+set(SILKWORM_CORE_PRIVATE_LIBS blst::blst)
 
 silkworm_library(
   silkworm_core

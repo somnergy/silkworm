@@ -8,7 +8,7 @@
 #include <optional>
 #include <vector>
 
-#include <ethash/hash_types.hpp>
+#include <evmone_precompiles/hash_types.h>
 #include <intx/intx.hpp>
 
 #include <silkworm/core/chain/config.hpp>

@@ -5,7 +5,7 @@
 
 #include <bit>
 
-#include <ethash/keccak.hpp>
+#include <evmone_precompiles/keccak.hpp>
 
 #include <silkworm/core/common/util.hpp>
 #include <silkworm/core/crypto/ecdsa.h>
