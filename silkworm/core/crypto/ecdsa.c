@@ -6,7 +6,6 @@
 #include <string.h>
 
 #include <evmone_precompiles/keccak.h>
-#include <secp256k1_ecdh.h>
 #include <secp256k1_recovery.h>
 
 //! \brief Tries recover public key used for message signing.
@@ -40,9 +39,9 @@ static bool public_key_to_address(uint8_t out[20], const uint8_t public_key[65])
 }
 
 bool silkworm_recover_address(uint8_t out[20], const uint8_t message[32], const uint8_t signature[64],
-                              uint8_t recovery_id, const secp256k1_context* context) {
+                              uint8_t recovery_id) {
     uint8_t public_key[65];
-    if (!recover(public_key, message, signature, recovery_id, context)) {
+    if (!recover(public_key, message, signature, recovery_id, secp256k1_context_static)) {
         return false;
     }
     return public_key_to_address(out, public_key);

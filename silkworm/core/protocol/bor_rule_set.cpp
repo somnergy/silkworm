@@ -84,9 +84,8 @@ static std::optional<evmc::address> ecrecover(const BlockHeader& header, const B
     ByteView signature{&header.extra_data[header.extra_data.size() - kExtraSealSize], kExtraSealSize - 1};
     uint8_t recovery_id{header.extra_data[header.extra_data.size() - 1]};
 
-    static secp256k1_context* context{secp256k1_context_create(SILKWORM_SECP256K1_CONTEXT_FLAGS)};
     evmc::address beneficiary;
-    if (!silkworm_recover_address(beneficiary.bytes, seal_hash.bytes, signature.data(), recovery_id, context)) {
+    if (!silkworm_recover_address(beneficiary.bytes, seal_hash.bytes, signature.data(), recovery_id)) {
         return std::nullopt;
     }
     return beneficiary;

@@ -46,8 +46,7 @@ std::optional<evmc::address> Authorization::recover_authority(const Transaction&
     intx::be::unsafe::store(signature + 2 * kHashLength, y_parity);
 
     std::optional recovered_authority = evmc::address{};
-    static secp256k1_context* context{secp256k1_context_create(SILKWORM_SECP256K1_CONTEXT_FLAGS)};
-    if (!silkworm_recover_address(recovered_authority->bytes, hash.bytes, signature, y_parity, context)) {
+    if (!silkworm_recover_address(recovered_authority->bytes, hash.bytes, signature, y_parity)) {
         recovered_authority = std::nullopt;
     }
     return recovered_authority;
@@ -501,7 +500,7 @@ std::optional<evmc::address> Transaction::sender() const {
         intx::be::unsafe::store(signature + kHashLength, s);
 
         sender_ = evmc::address{};
-        if (!silkworm_recover_address(sender_->bytes, hash.bytes, signature, odd_y_parity, secp256k1_context_static)) {
+        if (!silkworm_recover_address(sender_->bytes, hash.bytes, signature, odd_y_parity)) {
             sender_ = std::nullopt;
         }
     }

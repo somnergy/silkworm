@@ -47,8 +47,7 @@ std::optional<Bytes> ecrec_run(ByteView input) noexcept {
     }
 
     Bytes out(32, 0);
-    static secp256k1_context* context{secp256k1_context_create(SILKWORM_SECP256K1_CONTEXT_FLAGS)};
-    if (!silkworm_recover_address(&out[12], &d[0], &d[64], v != 27, context)) {
+    if (!silkworm_recover_address(&out[12], &d[0], &d[64], v != 27)) {
         return Bytes{};
     }
     return out;
