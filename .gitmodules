@@ -1,7 +1,7 @@
 [submodule "evmone"]
 	path = third_party/evmone/evmone
 	url = https://github.com/somnathb1/zevmone.git
-	branch = som/zz_dirty
+	branch = main
 [submodule "cbor-cpp"]
 	path = third_party/cbor-cpp/cbor-cpp
 	url = https://github.com/erigontech/cbor-cpp.git
