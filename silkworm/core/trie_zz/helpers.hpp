@@ -1,4 +1,4 @@
-// #pragma once
+#pragma once
 #include <array>
 #include <cstdint>
 #include <cstring>
@@ -6,75 +6,14 @@
 #include <optional>
 #include <utility>
 #include <vector>
+#include <bit>
+#include <evmone_precompiles/keccak.hpp>
 
-#include <evmc/evmc.hpp>
 
 #include <silkworm/core/common/bytes.hpp>
-
+#include "mpt.hpp"
 
 namespace silkworm::mpt {
-// ---------------------------------------------
-// RLP minimal helpers (strings + list headers)
-// ---------------------------------------------
-
-inline size_t rlp_size_str(size_t n, bool single_byte_is_literal, uint8_t first_byte = 0) {
-    if (single_byte_is_literal && n == 1 && first_byte < 0x80) return 1;
-    if (n <= 55) return 1 + n;
-    int L = 0;
-    for (size_t t = n; t; t >>= 8) ++L;
-    return 1 + L + n;
-}
-inline uint8_t* rlp_put_str(uint8_t* out, const uint8_t* s, size_t n,
-                            bool single_byte_is_literal, uint8_t first_byte = 0) {
-    if (single_byte_is_literal && n == 1 && first_byte < 0x80) {
-        *out++ = first_byte;
-        return out;
-    }
-    if (n <= 55) {
-        *out++ = static_cast<uint8_t>(0x80 + n);
-        if (n) {
-            std::memcpy(out, s, n);
-            out += n;
-        }
-        return out;
-    }
-    int L = 0;
-    size_t t = n;
-    uint8_t tmp[9];
-    do {
-        tmp[8 - (++L)] = static_cast<uint8_t>(t);
-        t >>= 8;
-    } while (t);
-    *out++ = static_cast<uint8_t>(0xB7 + L);
-    std::memcpy(out, tmp + 9 - L, L);
-    out += L;
-    std::memcpy(out, s, n);
-    out += n;
-    return out;
-}
-inline size_t rlp_size_list(size_t payload) {
-    if (payload <= 55) return 1 + payload;
-    int L = 0;
-    for (size_t t = payload; t; t >>= 8) ++L;
-    return 1 + L + payload;
-}
-inline uint8_t* rlp_put_list_hdr(uint8_t* out, size_t payload) {
-    if (payload <= 55) {
-        *out++ = static_cast<uint8_t>(0xC0 + payload);
-        return out;
-    }
-    int L = 0;
-    size_t t = payload;
-    uint8_t tmp[9];
-    do {
-        tmp[8 - (++L)] = static_cast<uint8_t>(t);
-        t >>= 8;
-    } while (t);
-    *out++ = static_cast<uint8_t>(0xF7 + L);
-    std::memcpy(out, tmp + 9 - L, L);
-    out += L;
-    return out;
-}
 
 // ---------------------------------------------
 // HP (hex-prefix) compact encoding
@@ -134,64 +73,6 @@ inline bool hp_decode(ByteView in, bool& is_leaf, std::array<uint8_t, 64>& out, 
     return true;
 }
 
-// Minimal RLP reader just for this use case.
-struct RlpReader {
-    ByteView v;
-    size_t i{0};
-
-    bool eof() const { return i >= v.size(); }
-    uint8_t peek() const { return v[i]; }
-
-    // Read an RLP string (returns view), or empty if malformed.
-    std::optional<ByteView> read_string() {
-        if (eof()) return std::nullopt;
-        uint8_t b = v[i++];
-        if (b <= 0x7f) {  // single byte literal
-            return ByteView{&v[i - 1], 1};
-        } else if (b <= 0xb7) {
-            size_t len = b - 0x80;
-            if (i + len > v.size()) return std::nullopt;
-            ByteView out{&v[i], len};
-            i += len;
-            return out;
-        } else if (b <= 0xbf) {
-            size_t lenlen = b - 0xb7;
-            if (i + lenlen > v.size()) return std::nullopt;
-            size_t len = 0;
-            for (size_t k = 0; k < lenlen; ++k) len = (len << 8) | v[i + k];
-            i += lenlen;
-            if (i + len > v.size()) return std::nullopt;
-            ByteView out{&v[i], len};
-            i += len;
-            return out;
-        }
-        return std::nullopt;  // lists start at C0
-    }
-    // Read a list payload view (no element parsing here).
-    std::optional<ByteView> read_list_payload() {
-        if (eof()) return std::nullopt;
-        uint8_t b = v[i++];
-        if (b <= 0xf7) {
-            if (b < 0xc0) return std::nullopt;
-            size_t len = b - 0xc0;
-            if (i + len > v.size()) return std::nullopt;
-            ByteView out{&v[i], len};
-            i += len;
-            return out;
-        } else {
-            size_t lenlen = b - 0xf7;
-            if (i + lenlen > v.size()) return std::nullopt;
-            size_t len = 0;
-            for (size_t k = 0; k < lenlen; ++k) len = (len << 8) | v[i + k];
-            i += lenlen;
-            if (i + len > v.size()) return std::nullopt;
-            ByteView out{&v[i], len};
-            i += len;
-            return out;
-        }
-    }
-};
-
 inline bool decode_branch(ByteView payload, BranchNode& br) {
     // Expect exactly 17 RLP strings concatenated inside payload.
     RlpReader it{payload};
@@ -226,48 +107,105 @@ inline bool decode_ext_or_leaf(ByteView payload, bool& is_leaf,
     return it.eof();
 }
 
-// Decode node from hash into a GridLine and push onto stack.
-inline bool unfold_node_from_hash(const NodeStore& store, const bytes32& hash,
-                                  GridLine& grid_line, uint8_t parent_slot_index) {
-    ByteView rlp = store.get_rlp(hash);
-    grid_line.hash = hash;
-    grid_line.cur_slot = parent_slot_index;
-    // Peek first byte to detect list; then sub-parse.
-    RlpReader rr{rlp};
-    auto list = rr.read_list_payload();
-    if (!list) return false;
 
-    // Try branch first: 17 concatenated items
-    // To distinguish: we need to attempt decoding as (17 strings). If it fails, try (2 items).
-    // A quick heuristic: count inner elements by walking; but we have a minimal reader—decode each shape directly.
 
-    // Try as branch:
-    {
-        BranchNode tmp{};
-        if (decode_branch(*list, tmp)) {
-            grid_line.kind = kBranch;
-            std::memcpy(&grid_line.branch, &tmp, sizeof(tmp));  // POD copy
-            return true;
-        }
+// Hex-Prefix encode-decode functions
+inline size_t hp_size(size_t nibbles) { return 1 + ((nibbles + 1) >> 1); }
+
+inline uint8_t* encode_hp_path(uint8_t* p, const uint8_t* nib, size_t n, bool leaf) {
+    const bool odd = (n & 1);
+    const uint8_t flag = (leaf ? 0x2 : 0x0) | (odd ? 0x1 : 0x0);
+    *p++ = static_cast<uint8_t>((flag << 4) | (odd ? (n ? (nib[0] & 0x0F) : 0) : 0));
+    size_t i = odd ? 1 : 0;
+    for (; i + 1 < n; i += 2) *p++ = static_cast<uint8_t>((nib[i] << 4) | (nib[i + 1] & 0x0F));
+    if (i < n) *p++ = static_cast<uint8_t>((nib[i] << 4));  // last high nibble only
+    return p;
+}
+
+// HP decode -> (is_leaf, nibbles[]). Returns false on malformed.
+inline bool hp_decode(ByteView in, bool& is_leaf, std::array<uint8_t, 64>& out, uint8_t& out_len) {
+    if (in.empty()) return false;
+    uint8_t flag = in[0] >> 4;
+    is_leaf = (flag & 0x2) != 0;
+    const bool odd = (flag & 0x1) != 0;
+    uint8_t nib0 = in[0] & 0x0F;
+
+    size_t pos = 1;
+    out_len = 0;
+
+    if (odd) {
+        out[out_len++] = nib0 & 0x0F;
     }
-    // Else extension/leaf:
-    bool is_leaf = false;
-    std::array<uint8_t, 64> path{};
-    uint8_t plen = 0;
-    ByteView second{};
-    if (!decode_ext_or_leaf(*list, is_leaf, path, plen, second)) return false;
-    if (is_leaf) {
-        grid_line.kind = kLeaf;
-        grid_line.leaf.path.len = plen;
-        std::memcpy(grid_line.leaf.path.nib.data(), path.data(), plen);
-        grid_line.leaf.value = {second.data(), second.size()};
-    } else {
-        if (second.size() != 32) return false;  // we store child as hash
-        grid_line.kind = kExt;
-        grid_line.ext.path.len = plen;
-        std::memcpy(grid_line.ext.path.nib.data(), path.data(), plen);
-        std::memcpy(grid_line.ext.child.bytes, second.data(), 32);
+    for (; pos < in.size(); ++pos) {
+        out[out_len++] = (in[pos] >> 4) & 0x0F;
+        out[out_len++] = in[pos] & 0x0F;
+        if (out_len > 64) return false;
     }
     return true;
+}
+// --------------
+
+
+inline evmc::bytes32 keccak_bytes(const Bytes& x) {
+    return std::bit_cast<evmc_bytes32>(ethash_keccak256(reinterpret_cast<const uint8_t*>(x.data()), x.size()));
+}
+
+// Create a leaf for remaining key suffix (after consuming one child nibble already if needed)
+inline bytes32 make_leaf_for_suffix(const uint8_t* suffix, uint8_t len, ByteView value,
+                                    const NodeStore& store) {
+    LeafNode l{};
+    l.path.len = len;
+    if (len) std::memcpy(l.path.nib.data(), suffix, len);
+    l.value = value;
+    Bytes enc = encode_leaf(l);
+    bytes32 h = keccak_bytes(enc);
+    if (store.put_rlp) store.put_rlp(h, enc);
+    return h;
+}
+
+// Make a branch with two children per a split: old (from existing child), new (from key suffix)
+inline bytes32 make_branch_two_children(uint8_t old_idx, const bytes32& old_child_hash,
+                                        uint8_t new_idx, const uint8_t* new_suffix, uint8_t new_len,
+                                        ByteView new_value, const NodeStore& store) {
+    BranchNode b{};
+    // Old side: place existing subtree under old_idx
+    b.child[old_idx] = old_child_hash;
+    b.mask |= static_cast<uint16_t>(1u << old_idx);
+    b.count++;
+    // New side: create a new leaf for new suffix (after consuming new_idx)
+    bytes32 new_leaf = make_leaf_for_suffix(new_suffix, new_len, new_value, store);
+    b.child[new_idx] = new_leaf;
+    b.mask |= static_cast<uint16_t>(1u << new_idx);
+    b.count++;
+    // Encode & hash
+    Bytes enc = encode_branch(b);
+    bytes32 h = keccak_bytes(enc);
+    if (store.put_rlp) store.put_rlp(h, enc);
+    return h;
+}
+
+// Wrap a child under a single-nibble Extension prefix (path one nibble)
+inline bytes32 wrap_ext_1(uint8_t nib, const bytes32& child, const NodeStore& store) {
+    ExtensionNode e{};
+    e.path.len = 1;
+    e.path.nib[0] = nib;
+    e.child = child;
+    Bytes enc = encode_ext(e);
+    bytes32 h = keccak_bytes(enc);
+    if (store.put_rlp) store.put_rlp(h, enc);
+    return h;
+}
+
+// Build an Extension over a Branch for a common prefix of length m>=1
+inline bytes32 wrap_ext_multi(const uint8_t* common, uint8_t m, const bytes32& child,
+                              const NodeStore& store) {
+    ExtensionNode e{};
+    e.path.len = m;
+    std::memcpy(e.path.nib.data(), common, m);
+    e.child = child;
+    Bytes enc = encode_ext(e);
+    bytes32 h = keccak_bytes(enc);
+    if (store.put_rlp) store.put_rlp(h, enc);
+    return h;
 }
 }  // namespace silkworm::mpt

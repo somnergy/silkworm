@@ -1,4 +1,4 @@
-// #pragma once
+#pragma once
 #include <array>
 #include <bit>
 #include <cstdint>
@@ -8,6 +8,7 @@
 #include <utility>
 #include <vector>
 
+#include <evmc/evmc.hpp>
 #include <evmone_precompiles/keccak.hpp>
 
 #include <silkworm/core/common/bytes.hpp>
@@ -15,315 +16,203 @@
 
 #include "helpers.hpp"
 #include "mpt.hpp"
+#include "rlp.hpp"
 
-// using namespace evmc;
 namespace silkworm::mpt {
 
-// Hex-Prefix encode-decode functions
+// Decode node from hash into a GridLine and push onto grid
+bool GridMPT::unfold_node_from_hash(const bytes32& hash, uint8_t parent_slot_index) {
+    auto& grid_line = grid_[depth_];
+    ByteView rlp = node_store_.get_rlp(hash);
+    grid_line.hash = hash;
+    grid_line.cur_slot = parent_slot_index;
+    // Peek first byte to detect list; then sub-parse.
+    RlpReader rr{rlp};
+    auto list = rr.read_list_payload();
+    if (!list) return false;
 
-inline size_t hp_size(size_t nibbles) { return 1 + ((nibbles + 1) >> 1); }
+    // Try branch first: 17 concatenated items
+    // To distinguish: we need to attempt decoding as (17 strings). If it fails, try (2 items).
+    // A quick heuristic: count inner elements by walking; but we have a minimal reader—decode each shape directly.
 
-inline uint8_t* encode_hp_path(uint8_t* p, const uint8_t* nib, size_t n, bool leaf) {
-    const bool odd = (n & 1);
-    const uint8_t flag = (leaf ? 0x2 : 0x0) | (odd ? 0x1 : 0x0);
-    *p++ = static_cast<uint8_t>((flag << 4) | (odd ? (n ? (nib[0] & 0x0F) : 0) : 0));
-    size_t i = odd ? 1 : 0;
-    for (; i + 1 < n; i += 2) *p++ = static_cast<uint8_t>((nib[i] << 4) | (nib[i + 1] & 0x0F));
-    if (i < n) *p++ = static_cast<uint8_t>((nib[i] << 4));  // last high nibble only
-    return p;
-}
-
-// HP decode → (is_leaf, nibbles[]). Returns false on malformed.
-inline bool hp_decode(ByteView in, bool& is_leaf, std::array<uint8_t, 64>& out, uint8_t& out_len) {
-    if (in.empty()) return false;
-    uint8_t flag = in[0] >> 4;
-    is_leaf = (flag & 0x2) != 0;
-    const bool odd = (flag & 0x1) != 0;
-    uint8_t nib0 = in[0] & 0x0F;
-
-    size_t pos = 1;
-    out_len = 0;
-
-    if (odd) {
-        out[out_len++] = nib0 & 0x0F;
+    // Try as branch:
+    {
+        BranchNode tmp{};
+        if (decode_branch(*list, tmp)) {
+            grid_line.kind = kBranch;
+            std::memcpy(&grid_line.branch, &tmp, sizeof(tmp));  // POD copy
+            grid_line.consumed = 1;
+            return true;
+        }
     }
-    for (; pos < in.size(); ++pos) {
-        out[out_len++] = (in[pos] >> 4) & 0x0F;
-        out[out_len++] = in[pos] & 0x0F;
-        if (out_len > 64) return false;
+    // Else extension/leaf:
+    bool is_leaf = false;
+    std::array<uint8_t, 64> path{};
+    uint8_t plen = 0;
+    ByteView second{};
+    if (!decode_ext_or_leaf(*list, is_leaf, path, plen, second)) return false;
+    if (is_leaf) {
+        grid_line.kind = kLeaf;
+        grid_line.leaf.path.len = plen;
+        std::memcpy(grid_line.leaf.path.nib.data(), path.data(), plen);
+        grid_line.leaf.value = {second.data(), second.size()};
+        grid_line.consumed = plen;
+    } else {
+        if (second.size() != 32) return false;  // we store child as hash
+        grid_line.kind = kExt;
+        grid_line.ext.path.len = plen;
+        std::memcpy(grid_line.ext.path.nib.data(), path.data(), plen);
+        std::memcpy(grid_line.ext.child.bytes, second.data(), 32);
+        grid_line.consumed = plen;
+    }
+    if (depth_ > 0) {
+        grid_line.consumed += grid_[depth_ - 1].consumed;
     }
     return true;
 }
-// --------------
 
-// ---------------------------------------------
-// Encoding from Grid lines (folding)
-// ---------------------------------------------
-
-inline Bytes encode_branch(const BranchNode& b) {
-    // Size inner items
-    size_t inner = 0;
-    for (int i = 0; i < 16; ++i) inner += rlp_size_str(is_zero(b.child[i]) ? 0 : 32, /*literal*/ false);
-    inner += rlp_size_str(b.value.size(), /*literal*/ true, b.value.size() ? b.value[0] : 0x00);
-    // Out buf
-    Bytes out;
-    out.resize(rlp_size_list(inner));
-    uint8_t* p = reinterpret_cast<uint8_t*>(out.data());
-    p = rlp_put_list_hdr(p, inner);
-    // 16 children
-    for (int i = 0; i < 16; ++i) {
-        if (is_zero(b.child[i])) {
-            *p++ = 0x80;
-        } else
-            p = rlp_put_str(p, b.child[i].bytes, 32, /*literal*/ false);
+inline bool GridMPT::fold_nibbles(int nib_count) {
+    while (nib_count > 0) {
+        auto consumed_here = grid_[depth_].consumed;
+        if (depth_ > 0) {
+            consumed_here -= grid_[depth_ - 1].consumed;
+        }
+        nib_count -= consumed_here;
+        if (!fold_lines(1)){
+            return false;
+        }
     }
-    // value
-    if (b.value.size() == 0) {
-        *p++ = 0x80;
-    } else
-        p = rlp_put_str(p, b.value.data(), b.value.size(), /*literal*/ true, b.value[0]);
-    return out;
+    return true;
 }
 
-inline Bytes encode_ext(const ExtensionNode& e) {
-    const size_t hp_sz = hp_size(e.path.len);
-    const size_t s0 = rlp_size_str(hp_sz, false);
-    const size_t s1 = rlp_size_str(32, false);
-    const size_t inner = s0 + s1;
-    Bytes out;
-    out.resize(rlp_size_list(inner));
-    uint8_t* p = reinterpret_cast<uint8_t*>(out.data());
-    p = rlp_put_list_hdr(p, inner);
-    // item0
-    {
-        // Write the HP-encoded path to a tiny temp
-        uint8_t hpbuf[1 + 32];  // 65 max
-        uint8_t* q = encode_hp_path(hpbuf, e.path.nib.data(), e.path.len, /*leaf*/ false);
-        p = rlp_put_str(p, hpbuf, size_t(q - hpbuf), false);
-    }
-    // item1
-    p = rlp_put_str(p, e.child.bytes, 32, false);
-    return out;
-}
-
-inline Bytes encode_leaf(const LeafNode& l) {
-    const size_t hp_sz = hp_size(l.path.len);
-    const size_t s0 = rlp_size_str(hp_sz, false);
-    const size_t s1 = rlp_size_str(l.value.size(), true, l.value.size() ? l.value[0] : 0);
-    const size_t inner = s0 + s1;
-    Bytes out;
-    out.resize(rlp_size_list(inner));
-    uint8_t* p = reinterpret_cast<uint8_t*>(out.data());
-    p = rlp_put_list_hdr(p, inner);
-    // item0
-    {
-        uint8_t hpbuf[1 + 32];
-        uint8_t* q = encode_hp_path(hpbuf, l.path.nib.data(), l.path.len, /*leaf*/ true);
-        p = rlp_put_str(p, hpbuf, size_t(q - hpbuf), false);
-    }
-    // item1
-    if (l.value.size() == 0)
-        *p++ = 0x80;
-    else
-        p = rlp_put_str(p, l.value.data(), l.value.size(), true, l.value[0]);
-    return out;
-}
-
-inline evmc::bytes32 keccak_bytes(const Bytes& x) {
-    return std::bit_cast<evmc_bytes32>(ethash_keccak256(reinterpret_cast<const uint8_t*>(x.data()), x.size()));
-}
-
-// ---------------------------------------------
-// Update mechanics (modify/insert with splits)
-// ---------------------------------------------
-
-// Create a leaf for remaining key suffix (after consuming one child nibble already if needed)
-inline bytes32 make_leaf_for_suffix(const uint8_t* suffix, uint8_t len, ByteView value,
-                                    const NodeStore& store) {
-    LeafNode l{};
-    l.path.len = len;
-    if (len) std::memcpy(l.path.nib.data(), suffix, len);
-    l.value = value;
-    Bytes enc = encode_leaf(l);
-    bytes32 h = keccak_bytes(enc);
-    if (store.put_rlp) store.put_rlp(h, enc);
-    return h;
-}
-
-// Make a branch with two children per a split: old (from existing child), new (from key suffix)
-inline bytes32 make_branch_two_children(uint8_t old_idx, const bytes32& old_child_hash,
-                                        uint8_t new_idx, const uint8_t* new_suffix, uint8_t new_len,
-                                        ByteView new_value, const NodeStore& store) {
-    BranchNode b{};
-    // Old side: place existing subtree under old_idx
-    b.child[old_idx] = old_child_hash;
-    b.mask |= static_cast<uint16_t>(1u << old_idx);
-    b.count++;
-    // New side: create a new leaf for new suffix (after consuming new_idx)
-    bytes32 new_leaf = make_leaf_for_suffix(new_suffix, new_len, new_value, store);
-    b.child[new_idx] = new_leaf;
-    b.mask |= static_cast<uint16_t>(1u << new_idx);
-    b.count++;
-    // Encode & hash
-    Bytes enc = encode_branch(b);
-    bytes32 h = keccak_bytes(enc);
-    if (store.put_rlp) store.put_rlp(h, enc);
-    return h;
-}
-
-// Wrap a child under a single-nibble Extension prefix (path one nibble)
-inline bytes32 wrap_ext_1(uint8_t nib, const bytes32& child, const NodeStore& store) {
-    ExtensionNode e{};
-    e.path.len = 1;
-    e.path.nib[0] = nib;
-    e.child = child;
-    Bytes enc = encode_ext(e);
-    bytes32 h = keccak_bytes(enc);
-    if (store.put_rlp) store.put_rlp(h, enc);
-    return h;
-}
-
-// Build an Extension over a Branch for a common prefix of length m>=1
-inline bytes32 wrap_ext_multi(const uint8_t* common, uint8_t m, const bytes32& child,
-                              const NodeStore& store) {
-    ExtensionNode e{};
-    e.path.len = m;
-    std::memcpy(e.path.nib.data(), common, m);
-    e.child = child;
-    Bytes enc = encode_ext(e);
-    bytes32 h = keccak_bytes(enc);
-    if (store.put_rlp) store.put_rlp(h, enc);
-    return h;
-}
-
-struct AccTrieNode {
-    bytes32 key;
-    ByteView value_rlp;
-};
-
-// Unfold from root as we traverse through the list of account updates
-// Finally return the root
-inline bytes32 calc_trie_grid(bytes32 prev_root,
-                              const NodeStore& store,
-                              const std::vector<AccTrieNode>& updates_sorted) {
-    // The max-depth of the trie can be 64.
-    std::array<GridLine, 64> grid{};
-
-    uint8_t depth = 0;
-    bytes32 cur = prev_root;  // The hash at current line
-    auto updates_it = updates_sorted.begin();
-    bool hasCommon = true;
-    bool should_unfold = updates_it < updates_sorted.end() && hasCommon;
-    bool is_searching = false;
-    bool should_fold = false;
-    uint8_t fold_for = 0;
-    Nibbles64 current_nibbles;
-    Nibbles64 previous_nibbles;
-    uint8_t curr_nib_i;
-
-    // Load root on to first line
-    unfold_node_from_hash(store, cur, grid[depth++], current_nibbles.nib[curr_nib_i]);
-    do {
-        // At the start of the loop the grid_line is invariably going to be a branch node
-        GridLine& grid_line = grid[depth];  // Point to this line with ref
-
-        // First do the pending folds
-        if (should_fold) {
-            should_fold = false;
-            // hash the current line
-            bytes32 h;
-            switch (grid_line.kind) {
+inline bool GridMPT::fold_lines(uint8_t num_lines) {
+    while (num_lines) {
+        GridLine& grid_line = grid_[depth_];
+        hash_line(grid_line);
+        if (depth_ > 0) {
+            --depth_;
+            auto& parent = grid_[depth_];
+            switch (parent.kind) {
                 case kBranch:
-                    h = keccak_bytes(encode_branch(grid_line.branch));
+                    parent.branch.child[parent.cur_slot] = grid_line.hash;
                     break;
                 case kExt:
-                    h = keccak_bytes(encode_ext(grid_line.ext));
-                    break;
-                case kLeaf:
-                    h = keccak_bytes(encode_leaf(grid_line.leaf));
+                    parent.ext.child = grid_line.hash;
                     break;
                 default:
                     break;
             }
-            depth--;
-            if (depth > 0) {
-                auto& parent = grid[depth];
-                switch (parent.kind) {
-                    case kBranch:
-                        parent.branch.child[parent.cur_slot] = h;
-                        break;
-                    case kExt:
-                        parent.ext.child = h;
-                        break;
-                    default:
-                        break;
-                }
-            } else {    // stop folding after root
-                cur = h;
-                break;
-            }
-            if (fold_for > 0) {
-                should_fold = true;
-                fold_for--;
-                continue;
-            }
+        } else {
+            return false;
         }
-        if (should_unfold) {
-            unfold_node_from_hash(store, cur, grid_line, current_nibbles.nib[curr_nib_i]);
-            should_unfold = false;
-            depth++;  // next depth
-        }
+        --num_lines;
+    }
+    return true;
+}
+// Encode and hash the given line and store it
+void hash_line(GridLine& line) {
+    Bytes encoded;
+    switch (line.kind) {
+        case kBranch:
+            encoded = encode_branch(line.branch);
+            break;
+        case kExt:
+            encoded = encode_ext(line.ext);
+            break;
+        case kLeaf:
+            encoded = encode_leaf(line.leaf);
+            break;
+    }
+    line.hash = keccak_bytes(encoded);
+}
 
-        // If there is no current item being searched for upwards or downwards
-        if (!is_searching && updates_it < updates_sorted.end()) {
-            auto new_nibbles = Nibbles64::from_bytes32(updates_it->key);
-            auto lcp = 0;
-            if (current_nibbles.len > 0) {
-                while (new_nibbles.nib[lcp] == current_nibbles.nib[lcp]) lcp++;
-                fold_for = curr_nib_i - lcp;
-                if (fold_for > 0) {
-                    should_fold = true;
-                }
-                curr_nib_i = lcp;
-            } else {
-                // should_unfold
-            }
-            is_searching = true;
-            current_nibbles = new_nibbles;
-            updates_it++;  // For the next lookup
-            continue;
+// Inserts leaf at current line's branch slot. The hash is calculated
+inline bool GridMPT::insert_leaf(uint8_t slot, ByteView value_rlp) {
+    if (depth_ >= 64) {
+        return false;
+    }
+    GridLine& grid_line = grid_[depth_];
+    if (grid_line.kind == kBranch) {
+        bytes32 leaf_h = make_leaf_for_suffix(
+            &search_nibbles_.nib[search_nib_cursor_ + 1],
+            64 - (search_nib_cursor_ + 1),
+            value_rlp,
+            node_store_);
+        grid_line.branch.child[slot] = leaf_h;
+        return true;
+    }
+    return false;
+}
+
+// Inserts extension at current depth_
+inline bool GridMPT::insert_extension(ExtensionNode& ext){
+    if (depth_ >= 64) {
+        return false;
+    }
+    GridLine& grid_line = grid_[depth_];
+    std::memcpy(std::addressof(grid_line.ext), &ext, sizeof(ExtensionNode));
+    grid_line.kind = kExt;
+    return true;
+}
+
+// Inserts branch at current depth_
+inline bool GridMPT::insert_branch(BranchNode& bn, uint8_t slot) {
+    if (depth_ >= 64) {
+        return false;
+    }
+    GridLine& grid_line = grid_[depth_];
+    std::memcpy(std::addressof(grid_line.branch), &bn, sizeof(BranchNode));
+    grid_line.kind = kBranch;
+    grid_line.cur_slot = slot;
+    return true;
+}
+// Unfold from root as we traverse through the list of account updates
+// Finally return the root
+inline bytes32 GridMPT::calc_root_from_updates(const std::vector<TrieNodeFlat>& updates_sorted) {
+    // Load root on to first line
+    unfold_node_from_hash(prev_root, 0);
+
+    for (auto trie_upd : updates_sorted) {
+        auto new_nibbles = nibbles64::from_bytes32(trie_upd.key);
+
+        // Find the least common path with the last inserted nibbles as reference
+        auto lcp = 0;  // store lowest common prefix with this line (a branch)
+        while (new_nibbles.nib[lcp] == search_nibbles_.nib[lcp] && lcp < grid_[depth_].consumed) lcp++;
+        auto fold_for = grid_[depth_].consumed - lcp - 1;
+
+        // Fold to reach lcp point in grid - never have to visit that again
+        if (fold_for > 0 && !fold_nibbles(fold_for)) {
+            return bytes32{};
         }
+        search_nib_cursor_ = lcp;
+        search_nibbles_ = new_nibbles;
 
         // Searching down
-        if (is_searching) {
+        while (depth_ < 64) {
+            auto& grid_line = grid_[depth_];
             if (grid_line.kind == kBranch) {
-                grid_line.cur_slot = current_nibbles.nib[curr_nib_i];
+                grid_line.cur_slot = search_nibbles_.nib[search_nib_cursor_];
                 auto& h_at_branch_slot = grid_line.branch.child[grid_line.cur_slot];
                 if (is_zero(h_at_branch_slot)) {
                     // insert
-                    bytes32 leaf_h = make_leaf_for_suffix(
-                        &current_nibbles.nib[curr_nib_i + 1],
-                        64 - (curr_nib_i + 1),
-                        updates_it->value_rlp,
-                        store);
-                    grid_line.branch.child[grid_line.cur_slot] = leaf_h;
+                    insert_leaf(grid_line.cur_slot, trie_upd.value_rlp);
+                    break;
                 } else {
-                    should_unfold = true;  // further unfold
-                    cur = h_at_branch_slot;
-                    curr_nib_i++;
+                    ++depth_;
+                    unfold_node_from_hash(h_at_branch_slot, search_nibbles_.nib[search_nib_cursor_]);
+                    search_nib_cursor_++;
                     continue;
                 }
             } else if (grid_line.kind == kExt) {
                 // go down till the first divergence point
                 uint8_t m = 0;
-                while (m < grid_line.ext.path.len && (curr_nib_i + m) < 64 && grid_line.ext.path.nib[m] == current_nibbles.nib[curr_nib_i + m]) ++m;
-                grid_line.consumed = m;  // probably not needed
-                curr_nib_i += m;
+                while (m < grid_line.ext.path.len && (search_nib_cursor_ + m) < 64 && grid_line.ext.path.nib[m] == search_nibbles_.nib[search_nib_cursor_ + m]) ++m;
+                search_nib_cursor_ += m;
 
                 if (m == grid_line.ext.path.len) {
-                    // Full match → continue below
-                    cur = grid_line.ext.child;
-                    should_unfold = true;
+                    // Full match -> continue below
+                    ++depth_;
+                    unfold_node_from_hash(grid_line.ext.child, search_nibbles_.nib[search_nib_cursor_]);
                     continue;
                 } else {
                     // We will now insert branch at divergence point
@@ -336,8 +225,10 @@ inline bytes32 calc_trie_grid(bytes32 prev_root,
                         // Shorten the grid_line current extension till the divergence point
                         grid_line.ext.path.len = m;
                         grid_line.ext.child = bytes32{};  // Update later with the created branch
+
                         // Keep this line with extension and add a new line to the grid
-                        grid_line = grid[depth++];
+                        ++depth_;
+                        grid_line = grid_[depth_];
                     }
 
                     ext_path_len -= m;
@@ -355,73 +246,58 @@ inline bytes32 calc_trie_grid(bytes32 prev_root,
                         // The extension is absorbed or not needed, so put the child directly into the newly created bn
                         bn.child[old_ext.path.nib[m]] = old_ext.child;
                     }
-
-                    bn.count = 2;
-                    bn.child[current_nibbles.nib[curr_nib_i]] = make_leaf_for_suffix(
-                        &current_nibbles.nib[curr_nib_i + 1],
-                        64 - (curr_nib_i + 1),
-                        updates_it->value_rlp,
-                        store);
-                    std::memcpy(std::addressof(grid_line.branch), &bn, sizeof(BranchNode));
-                    grid_line.kind = kBranch;
-                    grid_line.cur_slot = current_nibbles.nib[curr_nib_i];
-                    // insertion complete
-                    is_searching = false;
-                    should_unfold = false;
-                    continue;
+                    bn.count = 2;  // at this point
+                    insert_branch(bn, search_nibbles_.nib[search_nib_cursor_]);
+                    insert_leaf(grid_line.cur_slot, trie_upd.value_rlp);
+                    break;  // insertion complete
                 }
             } else {  // it's a leaf
                 BranchNode bn{};
-                // Find common path and create extension and push - unfolding, depth++ after
+                // Find common path and create extension and push - unfolding, depth_++ after
                 auto i = 0;
-                while (grid_line.leaf.path.nib[i] == current_nibbles.nib[curr_nib_i + i]) ++i;
-                if (curr_nib_i + i == 64){
-                    // This path exists in the tree already, it's an update and not insert, skip creating a new branch node
-                    grid_line.leaf.value = updates_it->value_rlp;
-                    auto h = keccak_bytes(encode_leaf(grid_line.leaf));
-                    is_searching = false;
-                    should_unfold = false;
-                    should_fold = true;
-                    continue;
-                }else if (i > 0) {
-                    Nibbles64 common_path{};
+                while (grid_line.leaf.path.nib[i] == search_nibbles_.nib[search_nib_cursor_ + i]) ++i;
+                if (search_nib_cursor_ + i == 64) {
+                    // This path exists in the tree already, update the value and fold
+                    grid_line.leaf.value = trie_upd.value_rlp;
+                    if (!fold_lines(1)) {
+                        return bytes32{};
+                    }
+                    break;  // update complete
+                } else if (i > 0) {
+                    nibbles64 common_path{};
                     std::memcpy(common_path.nib.data(), grid_line.leaf.path.nib.data(), i);
                     common_path.len = i;
                     ExtensionNode ext_common{};
                     ext_common.path = common_path;
-                    ext_common.child = bytes32{};  // update later
-                    curr_nib_i += i;
+                    ext_common.child = bytes32{};  // update while folding with the branch node created below
+                    search_nib_cursor_ += i;
 
-                    // Have to re-hash the old leaf
+
+                    // Have to re-hash the existing leaf
                     bn.child[grid_line.leaf.path.nib[i]] = make_leaf_for_suffix(
-                        &grid_line.leaf.path.nib[grid_line.leaf.path.nib[i] + 1],
-                        64 - (grid_line.leaf.path.nib[i] + 1),
+                        &grid_line.leaf.path.nib[i+1],
+                        grid_line.leaf.path.len-(i+1),
                         grid_line.leaf.value,
-                        store);
+                        node_store_);
+                    insert_extension(ext_common);
+                    ++depth_;
                 } else {
                     // re-use the hash
-                    bn.child[grid_line.leaf.path.nib[i]] = cur;
+                    bn.child[grid_line.leaf.path.nib[i]] = grid_line.hash;
                 }
-                bn.child[current_nibbles.nib[curr_nib_i]] = make_leaf_for_suffix(
-                    &current_nibbles.nib[curr_nib_i + 1],
-                    64 - (curr_nib_i + 1),
-                    updates_it->value_rlp,
-                    store);
-
-                std::memcpy(std::addressof(grid_line.branch), &bn, sizeof(BranchNode));
-                grid_line.kind = kBranch;
-                grid_line.cur_slot = current_nibbles.nib[curr_nib_i];
-                // insertion complete
-                is_searching = false;
-                should_unfold = false;
-                continue;
+                insert_branch(bn, search_nibbles_.nib[search_nib_cursor_]);
+                insert_leaf(grid_line.cur_slot, trie_upd.value_rlp);
+                break;  // insertion complete
             }
-        } else {
-            should_fold = true;  // keep folding till root
         }
-    } while (should_unfold || should_fold || depth > 0);
+    }
 
-    return cur;
+    // Fold till root
+    if (!fold_lines(depth_)) {
+        return bytes32{};
+    }
+    hash_line(grid_[0]);  // re-calculate root's hash
+    return grid_[0].hash;
 }
 
 }  // namespace silkworm::mpt
