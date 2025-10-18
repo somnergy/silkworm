@@ -13,7 +13,7 @@
 namespace silkworm::mpt {
 using bytes32 = evmc::bytes32;
 
-#if defined(__cpp_threadsafe_static_init) && !defined(NO_THREAD_LOCAL) && !defined(SP1)
+#if defined(__cpp_threadsafe_static_init) && !defined(NO_THREAD_LOCAL) && !defined(SP1) && !defined(QEMU_DEBUG)
 inline thread_local Bytes static_buffer = []() {
     Bytes buf;
     buf.reserve(1024);
@@ -31,14 +31,18 @@ struct nibbles64 {
     uint8_t len{};                  // Upto what point it holds the path, could be a sub-path
     std::array<uint8_t, 64> nib{};  // each 0..15   // Maximum path a TrieNode can have is 64 nibbles
 
+    // Operator overloads for direct array access
+    uint8_t& operator[](size_t index) { return nib[index]; }
+    const uint8_t& operator[](size_t index) const { return nib[index]; }
+
     // Convert a 32-byte key into 64 hex nibbles (0..15 per entry).
     static nibbles64 from_bytes32(const bytes32& k) {
         nibbles64 out;
         out.len = 64;
         for (size_t i = 0; i < 32; ++i) {
             uint8_t b = k.bytes[i];
-            out.nib[2 * i] = (b >> 4) & 0x0F;
-            out.nib[2 * i + 1] = b & 0x0F;
+            out[2 * i] = (b >> 4) & 0x0F;
+            out[2 * i + 1] = b & 0x0F;
         }
         return out;
     }
@@ -58,6 +62,7 @@ struct ExtensionNode {
 
 struct LeafNode {
     nibbles64 path;
+    uint8_t parent_slot;
     ByteView value{};
 };
 
@@ -75,10 +80,10 @@ enum Kind : uint8_t {
 };
 
 struct GridLine {
-    uint8_t kind;      // Kind
-    uint8_t cur_slot;  // parent child index (0..15) or 16 = branch value
-    uint8_t consumed;  // nibbles consumed at this node (ext/leaf)
-    uint8_t _pad;
+    uint8_t kind;          // Kind
+    uint8_t parent_slot;   // parent child index (0..15) or 16 = branch value
+    uint8_t parent_depth;  // Depth in the stack the current line's parent is at
+    uint8_t consumed;      // path nibbles consumed till this node (cumulative)
     bytes32 hash{};
     union {
         BranchNode branch;
@@ -86,9 +91,10 @@ struct GridLine {
         LeafNode leaf;
     };
 
-    GridLine() : kind(kBranch), cur_slot(0), consumed(0), _pad(0) {
-        std::memset(&branch, 0, sizeof(BranchNode));
+    GridLine() : kind(kBranch), parent_slot(0), consumed(0), parent_depth(0), branch{} {
+        // branch{} zero-initializes all members
     }
+    GridLine(uint8_t k, uint8_t pslot, uint8_t pdepth, uint8_t c) : kind{k}, parent_slot{pslot}, parent_depth{pdepth}, consumed{c} {}
 };
 
 // ---------------------------------------------
@@ -108,43 +114,59 @@ struct TrieNodeFlat {
     ByteView value_rlp;
 };
 
-struct RlpReader {
-    ByteView v;
-    size_t i{0};
-    ByteView v;
-    size_t i{0};
-
-    bool eof() const { return i >= v.size(); }
-    uint8_t peek() const { return v[i]; }
-    std::optional<ByteView> read_string();
-    std::optional<ByteView> read_list_payload();
-};
-
+// A class holding the data for the Trie root calculation
+// Proceeds as follows:
+// Search a key by going down the tree (unfolding)
+// When you find a position to insert, insert there and
+// recalulcate the hash of that node all the way up (folding)
+// If there are more keys to insert, find a common divergence point
+// and insert the new key there before folding further.
+// More unfolding and folding needed for this or more keys
 class GridMPT {
-    std::array<GridLine, 64> grid_;
-    uint8_t depth_{0};
-    nibbles64 search_nibbles_;
-    uint8_t search_nib_cursor_{0};
-    nibbles64 previous_nibbles_;
-    uint8_t fold_count_{0};
+    uint8_t depth_{0};              // The current depth we are visiting
+    uint8_t search_nib_cursor_{0};  // The position in the current search key
+    uint8_t cur_unfold_branch_{0};
+    std::array<uint8_t, 16> unfolded_child_{};  // Depths of children of current branch, if unfolded
+    // Previous root of the trie
+    bytes32 prev_root;
+    // A stack of grid-lines consisting of TrieNodes
+    std::vector<GridLine> grid_;
+    nibbles64 search_nibbles_;    // The current key being searched for/inserted
+    nibbles64 previous_nibbles_;  // The last searched key
 
     // Flags
     bool should_unfold_{false};
     bool should_fold_{false};
     bool is_searching_{false};
 
+    // A store containing the set of keys to be inserted
     const NodeStore& node_store_;
-    bytes32 prev_root;
 
-    // Helper methods (easier to test individually)
-    bool unfold_node_from_hash(const bytes32& hash, uint8_t parent_slot_index);
+    // Helper methods
+    bool unfold_node_from_hash(const bytes32& hash, uint8_t parent_slot_index, uint8_t parent_depth);
     bool fold_nibbles(int nib_count);
+    uint8_t fold_back();
     bool fold_lines(uint8_t num_lines);
-    bool insert_leaf(uint8_t slot, ByteView value_rlp);
-    bool insert_extension(ExtensionNode& ext);
-    bool insert_branch(BranchNode& bn, uint8_t slot);
-    bool insert_branch(uint8_t slot);
+    bytes32 make_leaf_for_suffix(const uint8_t* suffix, uint8_t len, ByteView value);
+    LeafNode make_cur_leaf(ByteView value_rlp);
+    bool insert_leaf(uint8_t parent_slot, uint8_t parent_depth, LeafNode& leaf);
+    bool insert_extension(uint8_t parent_slot, uint8_t parent_depth, ExtensionNode& ext);
+    bool insert_branch(uint8_t parent_slot, uint8_t parent_depth, BranchNode& bn);
+
+    bool split_leaf();
+
+  public:
+    GridMPT(const NodeStore& node_store, bytes32 previous_root_hash) : grid_{},
+                                                                       node_store_{node_store},
+                                                                       prev_root{previous_root_hash} {
+        grid_.reserve(66);  // Reserve max depth to avoid reallocations
+    }
+    // Main algorithm
     bytes32 calc_root_from_updates(const std::vector<TrieNodeFlat>& updates_sorted);
+    template <typename NodeType>
+    bool insert_line(uint8_t parent_slot, uint8_t parent_depth, NodeType& node);
+    template <typename NodeType>
+    bool cast_line(GridLine line, NodeType& node);
 };
 
 }  // namespace silkworm::mpt

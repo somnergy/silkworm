@@ -1,14 +1,145 @@
 // Copyright 2025 The Silkworm Authors
 // SPDX-License-Identifier: Apache-2.0
 
+#include <map>
+
 #include <catch2/catch_test_macros.hpp>
 
 #include <silkworm/core/common/util.hpp>
 #include <silkworm/core/trie_zz/helpers.hpp>
 #include <silkworm/core/trie_zz/mpt.hpp>
 #include <silkworm/core/trie_zz/rlp_sw.hpp>
+#include <silkworm/core/common/empty_hashes.hpp>
+#include <silkworm/core/common/util.hpp>
+#include "../mpt.hpp"
 
 namespace silkworm::mpt {
+
+// =============================================================================
+// Mock NodeStore for Testing
+// =============================================================================
+
+class MockNodeStore {
+  public:
+    std::map<bytes32, Bytes, std::less<>> storage_;
+
+    NodeStore make_store() {
+        NodeStore store;
+        store.get_rlp = [this](const bytes32& hash) -> ByteView {
+            auto it = storage_.find(hash);
+            if (it == storage_.end()) {
+                static Bytes empty;
+                return ByteView{empty};
+            }
+            return ByteView{it->second};
+        };
+        store.put_rlp = [this](const bytes32& hash, const Bytes& rlp) {
+            storage_[hash] = rlp;
+        };
+        return store;
+    }
+
+    void clear() { storage_.clear(); }
+
+    size_t size() const { return storage_.size(); }
+    
+    // Helper to manually insert nodes for testing
+    void insert(const bytes32& hash, const Bytes& rlp) {
+        storage_[hash] = rlp;
+    }
+};
+
+// =============================================================================
+// Helper Functions
+// =============================================================================
+
+bytes32 make_key(const std::string& hex) {
+    bytes32 key{};
+    auto bytes = from_hex(hex);
+    std::memcpy(key.bytes, bytes->data(), std::min(size_t(32), bytes->size()));
+    return key;
+}
+
+ByteView make_value(const std::string& str) {
+    static std::vector<Bytes> values;
+    // RLP-encode the value before storing it
+    Bytes encoded;
+    rlp::encode(encoded, ByteView{reinterpret_cast<const uint8_t*>(str.data()), str.size()});
+    values.push_back(encoded);
+    return ByteView{values.back()};
+}
+
+// Helper to build a simple trie manually
+struct TrieBuilder {
+    MockNodeStore& store;
+    
+    explicit TrieBuilder(MockNodeStore& s) : store(s) {}
+    
+    // Create a single leaf and return its hash
+    bytes32 make_leaf(const std::string& hex_suffix, const std::string& value) {
+        LeafNode leaf{};
+        auto suffix_bytes = from_hex(hex_suffix);
+        
+        // Convert hex to nibbles
+        leaf.path.len = 0;
+        for (size_t i = 0; i < suffix_bytes->size() && leaf.path.len < 64; ++i) {
+            leaf.path[leaf.path.len++] = (suffix_bytes->at(i) >> 4) & 0x0F;
+            if (leaf.path.len < 64) {
+                leaf.path[leaf.path.len++] = suffix_bytes->at(i) & 0x0F;
+            }
+        }
+        
+        leaf.value = make_value(value);
+        
+        Bytes encoded = encode_leaf(leaf);
+        bytes32 hash = keccak_bytes(encoded);
+        store.insert(hash, encoded);
+        return hash;
+    }
+    
+    // Create a branch with specified children and return its hash
+    bytes32 make_branch(const std::vector<std::pair<uint8_t, bytes32>>& children) {
+        BranchNode branch{};
+        // std::memset(&branch, 0, sizeof(BranchNode));
+        
+        for (const auto& [idx, child_hash] : children) {
+            branch.child[idx] = child_hash;
+            branch.mask |= (1u << idx);
+            branch.count++;
+        }
+        
+        Bytes encoded = encode_branch(branch);
+        bytes32 hash = keccak_bytes(encoded);
+        store.insert(hash, encoded);
+        return hash;
+    }
+    
+    // Create an extension and return its hash
+    bytes32 make_extension(const std::string& hex_path, const bytes32& child_hash) {
+        ExtensionNode ext{};
+        auto path_bytes = from_hex(hex_path);
+        
+        // Convert hex to nibbles
+        ext.path.len = 0;
+        for (size_t i = 0; i < path_bytes->size() && ext.path.len < 64; ++i) {
+            ext.path[ext.path.len++] = (path_bytes->at(i) >> 4) & 0x0F;
+            if (ext.path.len < 64) {
+                ext.path[ext.path.len++] = path_bytes->at(i) & 0x0F;
+            }
+        }
+        
+        ext.child = child_hash;
+        
+        Bytes encoded = encode_ext(ext);
+        bytes32 hash = keccak_bytes(encoded);
+        store.insert(hash, encoded);
+        return hash;
+    }
+};
+
+// =============================================================================
+// Basic Tests
+// =============================================================================
 
 TEST_CASE("nibbles64 operator[]") {
     SECTION("basic access") {
@@ -126,12 +257,383 @@ TEST_CASE("is_zero helper") {
     }
 }
 
-TEST_CASE("GridMPT basic operations") {
-    SECTION("construct empty grid") {
-        // This is a placeholder - you'll need to implement actual GridMPT tests
-        // based on your NodeStore implementation
-        CHECK(true);
+// =============================================================================
+// GridMPT Trie Calculation Tests
+// =============================================================================
+
+// TEST_CASE("GridMPT: Single insertion into empty trie") {
+//     MockNodeStore mock_store;
+//     auto store = mock_store.make_store();
+
+//     GridMPT grid(store, kEmptyRoot);
+
+//     std::vector<TrieNodeFlat> updates;
+//     updates.push_back({
+//         make_key("1000000000000000000000000000000000000000000000000000000000000000"),
+//         make_value("value1")
+//     });
+
+//     bytes32 root = grid.calc_root_from_updates(updates);
+    
+//     SECTION("root is not zero") {
+//         CHECK(!is_zero_quick(root));
+//     }
+// }
+
+// TEST_CASE("GridMPT: Two insertions with no common prefix") {
+//     MockNodeStore mock_store;
+//     auto store = mock_store.make_store();
+
+//     GridMPT grid(store, kEmptyRoot);
+
+//     std::vector<TrieNodeFlat> updates;
+//     updates.push_back({
+//         make_key("1000000000000000000000000000000000000000000000000000000000000000"),
+//         make_value("value1")
+//     });
+//     updates.push_back({
+//         make_key("2000000000000000000000000000000000000000000000000000000000000000"),
+//         make_value("value2")
+//     });
+
+//     bytes32 root = grid.calc_root_from_updates(updates);
+
+//     SECTION("root is not zero") {
+//         CHECK(!is_zero_quick(root));
+//     }
+// }
+
+// TEST_CASE("GridMPT: Insertions with common prefix") {
+//     MockNodeStore mock_store;
+//     auto store = mock_store.make_store();
+
+//     GridMPT grid(store, kEmptyRoot);
+
+//     std::vector<TrieNodeFlat> updates;
+//     updates.push_back({
+//         make_key("ABCD100000000000000000000000000000000000000000000000000000000000"),
+//         make_value("value1")
+//     });
+//     updates.push_back({
+//         make_key("ABCD200000000000000000000000000000000000000000000000000000000000"),
+//         make_value("value2")
+//     });
+
+//     bytes32 root = grid.calc_root_from_updates(updates);
+
+//     SECTION("root is not zero") {
+//         CHECK(!is_zero_quick(root));
+//     }
+// }
+
+// TEST_CASE("GridMPT: Update existing key in pre-populated trie") {
+//     MockNodeStore mock_store;
+//     auto store = mock_store.make_store();
+//     TrieBuilder builder(mock_store);
+
+//     // Build initial trie: single leaf with key ending in "10"
+//     bytes32 leaf1 = builder.make_leaf("1234567890ABCDEF000000000000000000000000000000000000000000000000", "oldvalue");
+    
+//     // Use this leaf as the root
+//     bytes32 initial_root = leaf1;
+
+//     // Now update with same key but new value
+//     GridMPT grid(store, initial_root);
+//     std::vector<TrieNodeFlat> updates;
+//     updates.push_back({
+//         make_key("1234567890ABCDEF000000000000000000000000000000000000000000000000"),
+//         make_value("newvalue")
+//     });
+
+//     bytes32 new_root = grid.calc_root_from_updates(updates);
+
+//     SECTION("roots are different") {
+//         CHECK(new_root != initial_root);
+//     }
+    
+//     SECTION("new root is not zero") {
+//         CHECK(!is_zero_quick(new_root));
+//     }
+// }
+
+// TEST_CASE("GridMPT: Insert into existing trie with branch") {
+//     MockNodeStore mock_store;
+//     auto store = mock_store.make_store();
+//     TrieBuilder builder(mock_store);
+
+//     // Build initial trie with 2 leaves under a branch
+//     // Branch at root with children at index 1 and 2
+//     bytes32 leaf1 = builder.make_leaf("000000000000000000000000000000000000000000000000000000000000000", "value1");
+//     bytes32 leaf2 = builder.make_leaf("000000000000000000000000000000000000000000000000000000000000000", "value2");
+    
+//     bytes32 branch_root = builder.make_branch({
+//         {0x01, leaf1},
+//         {0x02, leaf2}
+//     });
+
+//     // Now insert a new key starting with 0x03
+//     GridMPT grid(store, branch_root);
+//     std::vector<TrieNodeFlat> updates;
+//     bytes32 new_root = grid.calc_root_from_updates(updates);
+//     SECTION("new root is is same without updates") {
+//         CHECK(branch_root == new_root);
+//     }
+//     updates.push_back({
+//         make_key("3000000000000000000000000000000000000000000000000000000000000000"),
+//         make_value("value3")
+//     });
+//     new_root = grid.calc_root_from_updates(updates);
+
+//     SECTION("new root is not zero") {
+//         CHECK(!is_zero_quick(new_root));
+//     }
+//     SECTION("new root is different from old") {
+//         CHECK(branch_root != new_root);
+//     }
+// }
+
+TEST_CASE("GridMPT: Insert into trie with extension") {
+    MockNodeStore mock_store;
+    auto store = mock_store.make_store();
+    TrieBuilder builder(mock_store);
+
+    // Build: Extension(ABCD) -> Branch -> 2 leaves
+    bytes32 leaf1 = builder.make_leaf("00000000000000000000000000000000000000000000000000000000000", "val1");
+    bytes32 leaf2 = builder.make_leaf("00000000000000000000000000000000000000000000000000000000000", "val2");
+    
+    bytes32 branch = builder.make_branch({
+        {0x01, leaf1},
+        {0x02, leaf2}
+    });
+    
+    bytes32 ext_root = builder.make_extension("ABCD", branch);
+
+    // Insert key that splits the extension at position 2 (AB|CD)
+    GridMPT grid(store, ext_root);
+    std::vector<TrieNodeFlat> updates;
+    updates.push_back({
+        make_key("AB00000000000000000000000000000000000000000000000000000000000000"),
+        make_value("value3")
+    });
+
+    bytes32 new_root = grid.calc_root_from_updates(updates);
+
+    SECTION("extension was split") {
+        CHECK(ext_root != new_root);
+    }
+    
+    SECTION("new root is not zero") {
+        CHECK(!is_zero_quick(new_root));
     }
 }
+
+// TEST_CASE("GridMPT: Leaf collision and split") {
+//     MockNodeStore mock_store;
+//     auto store = mock_store.make_store();
+
+//     GridMPT grid(store, kEmptyRoot);
+
+//     std::vector<TrieNodeFlat> updates;
+//     updates.push_back({
+//         make_key("AAAAAAAAAAAAAAAA000000000000000000000000000000000000000000000000"),
+//         make_value("value1")
+//     });
+//     updates.push_back({
+//         make_key("AAAAAAAAAAAAAAAA100000000000000000000000000000000000000000000000"),
+//         make_value("value2")
+//     });
+
+//     bytes32 root = grid.calc_root_from_updates(updates);
+
+//     SECTION("root is not zero") {
+//         CHECK(!is_zero_quick(root));
+//     }
+// }
+
+// TEST_CASE("GridMPT: Extension node split") {
+//     MockNodeStore mock_store;
+//     auto store = mock_store.make_store();
+
+//     GridMPT grid(store, kEmptyRoot);
+
+//     std::vector<TrieNodeFlat> updates;
+//     updates.push_back({
+//         make_key("ABCD000000000000000000000000000000000000000000000000000000000000"),
+//         make_value("value1")
+//     });
+//     updates.push_back({
+//         make_key("ABCD100000000000000000000000000000000000000000000000000000000000"),
+//         make_value("value2")
+//     });
+//     updates.push_back({
+//         make_key("AB00000000000000000000000000000000000000000000000000000000000000"),
+//         make_value("value3")
+//     });
+
+//     bytes32 root = grid.calc_root_from_updates(updates);
+
+//     SECTION("root is not zero") {
+//         CHECK(!is_zero_quick(root));
+//     }
+// }
+
+// TEST_CASE("GridMPT: Multiple updates in sorted order") {
+//     MockNodeStore mock_store;
+//     auto store = mock_store.make_store();
+
+//     GridMPT grid(store, kEmptyRoot);
+
+//     std::vector<TrieNodeFlat> updates;
+//     for (int i = 0; i < 10; ++i) {
+//         bytes32 key{};
+//         key.bytes[0] = static_cast<uint8_t>(i);
+//         updates.push_back({key, make_value("value" + std::to_string(i))});
+//     }
+
+//     bytes32 root = grid.calc_root_from_updates(updates);
+
+//     SECTION("root is not zero") {
+//         CHECK(!is_zero_quick(root));
+//     }
+// }
+
+// TEST_CASE("GridMPT: Adjacent keys") {
+//     MockNodeStore mock_store;
+//     auto store = mock_store.make_store();
+
+//     GridMPT grid(store, kEmptyRoot);
+
+//     std::vector<TrieNodeFlat> updates;
+//     bytes32 key1{}, key2{};
+//     std::memset(key1.bytes, 0, 32);
+//     std::memset(key2.bytes, 0, 32);
+//     key1.bytes[31] = 0x00;
+//     key2.bytes[31] = 0x01;
+
+//     updates.push_back({key1, make_value("value1")});
+//     updates.push_back({key2, make_value("value2")});
+
+//     bytes32 root = grid.calc_root_from_updates(updates);
+
+//     SECTION("root is not zero") {
+//         CHECK(!is_zero_quick(root));
+//     }
+// }
+
+// TEST_CASE("GridMPT: Empty update list") {
+//     MockNodeStore mock_store;
+//     auto store = mock_store.make_store();
+
+//     GridMPT grid(store, kEmptyRoot);
+
+//     std::vector<TrieNodeFlat> updates;
+
+//     bytes32 root = grid.calc_root_from_updates(updates);
+
+//     SECTION("root should be empty") {
+//         CHECK(root == kEmptyRoot);
+//     }
+// }
+
+// TEST_CASE("GridMPT: Complex scenario with mixed operations") {
+//     MockNodeStore mock_store;
+//     auto store = mock_store.make_store();
+
+//     GridMPT grid(store, kEmptyRoot);
+
+//     std::vector<TrieNodeFlat> updates;
+//     updates.push_back({
+//         make_key("1000000000000000000000000000000000000000000000000000000000000000"),
+//         make_value("v1")
+//     });
+//     updates.push_back({
+//         make_key("1100000000000000000000000000000000000000000000000000000000000000"),
+//         make_value("v2")
+//     });
+//     updates.push_back({
+//         make_key("1110000000000000000000000000000000000000000000000000000000000000"),
+//         make_value("v3")
+//     });
+//     updates.push_back({
+//         make_key("1111000000000000000000000000000000000000000000000000000000000000"),
+//         make_value("v4")
+//     });
+//     updates.push_back({
+//         make_key("2000000000000000000000000000000000000000000000000000000000000000"),
+//         make_value("v5")
+//     });
+
+//     bytes32 root = grid.calc_root_from_updates(updates);
+
+//     SECTION("root is not zero") {
+//         CHECK(!is_zero_quick(root));
+//     }
+// }
+
+// TEST_CASE("GridMPT: Deterministic root hash") {
+//     MockNodeStore mock_store1, mock_store2;
+//     auto store1 = mock_store1.make_store();
+//     auto store2 = mock_store2.make_store();
+
+//     std::vector<TrieNodeFlat> updates;
+//     updates.push_back({
+//         make_key("ABCD000000000000000000000000000000000000000000000000000000000000"),
+//         make_value("value1")
+//     });
+//     updates.push_back({
+//         make_key("ABCD100000000000000000000000000000000000000000000000000000000000"),
+//         make_value("value2")
+//     });
+
+//     GridMPT grid1(store1, kEmptyRoot);
+//     bytes32 root1 = grid1.calc_root_from_updates(updates);
+
+//     GridMPT grid2(store2, kEmptyRoot);
+//     bytes32 root2 = grid2.calc_root_from_updates(updates);
+
+//     SECTION("same inputs produce same root") {
+//         CHECK(std::memcmp(root1.bytes, root2.bytes, 32) == 0);
+//     }
+// }
+
+// TEST_CASE("GridMPT: Incremental updates") {
+//     MockNodeStore mock_store;
+//     auto store = mock_store.make_store();
+
+//     bytes32 root = kEmptyRoot;
+
+//     {
+//         GridMPT grid(store, root);
+//         std::vector<TrieNodeFlat> updates;
+//         updates.push_back({
+//             make_key("1000000000000000000000000000000000000000000000000000000000000000"),
+//             make_value("v1")
+//         });
+//         root = grid.calc_root_from_updates(updates);
+//     }
+
+//     bytes32 root_after_1 = root;
+//     CHECK(!is_zero_quick(root_after_1));
+
+//     {
+//         GridMPT grid(store, root);
+//         std::vector<TrieNodeFlat> updates;
+//         updates.push_back({
+//             make_key("2000000000000000000000000000000000000000000000000000000000000000"),
+//             make_value("v2")
+//         });
+//         root = grid.calc_root_from_updates(updates);
+//     }
+
+//     bytes32 root_after_2 = root;
+
+//     SECTION("incremental updates change root") {
+//         CHECK(std::memcmp(root_after_1.bytes, root_after_2.bytes, 32) != 0);
+//     }
+
+//     SECTION("final root is not zero") {
+//         CHECK(!is_zero_quick(root_after_2));
+//     }
+// }
 
 }  // namespace silkworm::mpt

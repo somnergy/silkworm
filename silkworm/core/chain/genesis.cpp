@@ -178,7 +178,7 @@ InMemoryState read_pre_state_from_rlp(ByteView rlp_view) {
         }
         ByteView entry_payload = storage_view.substr(0, entry_header->payload_length);
         // sys_println("Storage entry:");
-        // sys_println(to_hex(entry_payload).c_str());
+        sys_println(to_hex(entry_payload).c_str());
         evmc::address address;
         rlp::decode(entry_payload, address);
         uint64_t incarnation = address_incarnations[address];
