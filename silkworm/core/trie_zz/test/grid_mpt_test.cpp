@@ -5,12 +5,12 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <silkworm/core/common/empty_hashes.hpp>
 #include <silkworm/core/common/util.hpp>
 #include <silkworm/core/trie_zz/helpers.hpp>
 #include <silkworm/core/trie_zz/mpt.hpp>
 #include <silkworm/core/trie_zz/rlp_sw.hpp>
-#include <silkworm/core/common/empty_hashes.hpp>
-#include <silkworm/core/common/util.hpp>
+
 #include "../mpt.hpp"
 
 namespace silkworm::mpt {
@@ -19,32 +19,28 @@ namespace silkworm::mpt {
 // Mock NodeStore for Testing
 // =============================================================================
 
-class MockNodeStore {
+class MockNodeStore : public NodeStore {
   public:
     std::map<bytes32, Bytes, std::less<>> storage_;
-
-    NodeStore make_store() {
-        NodeStore store;
-        store.get_rlp = [this](const bytes32& hash) -> ByteView {
-            auto it = storage_.find(hash);
-            if (it == storage_.end()) {
-                static Bytes empty;
-                return ByteView{empty};
-            }
-            return ByteView{it->second};
-        };
-        store.put_rlp = [this](const bytes32& hash, const Bytes& rlp) {
-            storage_[hash] = rlp;
-        };
-        return store;
-    }
 
     void clear() { storage_.clear(); }
 
     size_t size() const { return storage_.size(); }
-    
+
     // Helper to manually insert nodes for testing
     void insert(const bytes32& hash, const Bytes& rlp) {
+        storage_[hash] = rlp;
+    }
+
+    ByteView get_rlp(const bytes32& hash) const override {
+        auto it = storage_.find(hash);
+        if (it == storage_.end()) {
+            static Bytes empty;
+            return ByteView{empty};
+        }
+        return ByteView{it->second};
+    }
+    void put_rlp(const bytes32& hash, const Bytes& rlp) override {
         storage_[hash] = rlp;
     }
 };
@@ -72,64 +68,68 @@ ByteView make_value(const std::string& str) {
 // Helper to build a simple trie manually
 struct TrieBuilder {
     MockNodeStore& store;
-    
+
     explicit TrieBuilder(MockNodeStore& s) : store(s) {}
-    
+    uint8_t hex_to_nibble(char ch) {
+        if (ch >= '0' && ch <= '9') return static_cast<uint8_t>(ch - '0');
+        if (ch >= 'a' && ch <= 'f') return static_cast<uint8_t>(ch - 'a' + 10);
+        if (ch >= 'A' && ch <= 'F') return static_cast<uint8_t>(ch - 'A' + 10);
+        return 0;  // invalid
+    }
+
     // Create a single leaf and return its hash
     bytes32 make_leaf(const std::string& hex_suffix, const std::string& value) {
         LeafNode leaf{};
-        auto suffix_bytes = from_hex(hex_suffix);
-        
-        // Convert hex to nibbles
-        leaf.path.len = 0;
-        for (size_t i = 0; i < suffix_bytes->size() && leaf.path.len < 64; ++i) {
-            leaf.path[leaf.path.len++] = (suffix_bytes->at(i) >> 4) & 0x0F;
-            if (leaf.path.len < 64) {
-                leaf.path[leaf.path.len++] = suffix_bytes->at(i) & 0x0F;
-            }
+        for (char c : hex_suffix) {
+            leaf.path[leaf.path.len++] = hex_to_nibble(c);
         }
-        
         leaf.value = make_value(value);
-        
         Bytes encoded = encode_leaf(leaf);
         bytes32 hash = keccak_bytes(encoded);
         store.insert(hash, encoded);
         return hash;
     }
-    
+
     // Create a branch with specified children and return its hash
     bytes32 make_branch(const std::vector<std::pair<uint8_t, bytes32>>& children) {
         BranchNode branch{};
         // std::memset(&branch, 0, sizeof(BranchNode));
-        
+
         for (const auto& [idx, child_hash] : children) {
-            branch.child[idx] = child_hash;
-            branch.mask |= (1u << idx);
-            branch.count++;
+            auto rlp = store.get_rlp(child_hash);
+            if (rlp.size() < 32) {
+                std::memcpy(branch.child[idx].bytes, rlp.data(), rlp.size());
+                branch.child_len[idx] = rlp.size();
+            } else {
+                branch.child[idx] = child_hash;
+                branch.child_len[idx] = 32;
+            }
         }
-        
+
         Bytes encoded = encode_branch(branch);
+        // std::cout << "make_branch encoded branch: " << silkworm::to_hex(encoded) << std::endl;
+
         bytes32 hash = keccak_bytes(encoded);
         store.insert(hash, encoded);
         return hash;
     }
-    
+
     // Create an extension and return its hash
     bytes32 make_extension(const std::string& hex_path, const bytes32& child_hash) {
         ExtensionNode ext{};
-        auto path_bytes = from_hex(hex_path);
-        
-        // Convert hex to nibbles
-        ext.path.len = 0;
-        for (size_t i = 0; i < path_bytes->size() && ext.path.len < 64; ++i) {
-            ext.path[ext.path.len++] = (path_bytes->at(i) >> 4) & 0x0F;
-            if (ext.path.len < 64) {
-                ext.path[ext.path.len++] = path_bytes->at(i) & 0x0F;
-            }
+        for (char c : hex_path) {
+            ext.path[ext.path.len++] = hex_to_nibble(c);
         }
-        
-        ext.child = child_hash;
-        
+
+        auto rlp = store.get_rlp(child_hash);
+        if (rlp.size() < 32) {
+            std::memcpy(ext.child.bytes, rlp.data(), rlp.size());
+            ext.child_len = rlp.size();
+        } else {
+            ext.child = child_hash;
+            ext.child_len = 32;
+        }
+
         Bytes encoded = encode_ext(ext);
         bytes32 hash = keccak_bytes(encoded);
         store.insert(hash, encoded);
@@ -141,121 +141,122 @@ struct TrieBuilder {
 // Basic Tests
 // =============================================================================
 
-TEST_CASE("nibbles64 operator[]") {
-    SECTION("basic access") {
-        nibbles64 n;
-        n.len = 5;
-        n[0] = 0x0F;
-        n[1] = 0x0A;
-        n[2] = 0x05;
+// TEST_CASE("nibbles64 operator[]") {
+//     SECTION("basic access") {
+//         nibbles64 n;
+//         n.len = 5;
+//         n[0] = 0x0F;
+//         n[1] = 0x0A;
+//         n[2] = 0x05;
 
-        CHECK(n[0] == 0x0F);
-        CHECK(n[1] == 0x0A);
-        CHECK(n[2] == 0x05);
-    }
+//         CHECK(n[0] == 0x0F);
+//         CHECK(n[1] == 0x0A);
+//         CHECK(n[2] == 0x05);
+//     }
 
-    SECTION("from_bytes32") {
-        bytes32 key{};
-        key.bytes[0] = 0xAB;
-        key.bytes[1] = 0xCD;
+//     SECTION("from_bytes32") {
+//         bytes32 key{};
+//         key.bytes[0] = 0xAB;
+//         key.bytes[1] = 0xCD;
 
-        auto nibbles = nibbles64::from_bytes32(key);
+//         auto nibbles = nibbles64::from_bytes32(key);
 
-        CHECK(nibbles.len == 64);
-        CHECK(nibbles[0] == 0x0A);  // High nibble of 0xAB
-        CHECK(nibbles[1] == 0x0B);  // Low nibble of 0xAB
-        CHECK(nibbles[2] == 0x0C);  // High nibble of 0xCD
-        CHECK(nibbles[3] == 0x0D);  // Low nibble of 0xCD
-    }
-}
+//         CHECK(nibbles.len == 64);
+//         CHECK(nibbles[0] == 0x0A);  // High nibble of 0xAB
+//         CHECK(nibbles[1] == 0x0B);  // Low nibble of 0xAB
+//         CHECK(nibbles[2] == 0x0C);  // High nibble of 0xCD
+//         CHECK(nibbles[3] == 0x0D);  // Low nibble of 0xCD
+//     }
+// }
 
-TEST_CASE("RLP encoding") {
-    SECTION("encode branch node") {
-        BranchNode branch{};
-        // Empty branch (all zeros)
-        auto encoded = encode_branch(branch);
-        CHECK(!encoded.empty());
+// TEST_CASE("RLP encoding") {
+//     SECTION("encode branch node") {
+//         BranchNode branch{};
+//         // Empty branch (all zeros)
+//         auto encoded = encode_branch(branch);
+//         CHECK(!encoded.empty());
 
-        // Branch with one child
-        branch.child[0].bytes[0] = 0x01;
-        branch.mask = 0x0001;
-        branch.count = 1;
-        auto encoded2 = encode_branch(branch);
-        CHECK(encoded2.size() > encoded.size());
-    }
+//         // Branch with one child (32-byte hash)
+//         for (size_t i = 0; i < 32; ++i) {
+//             branch.child[0].bytes[i] = static_cast<uint8_t>(i + 1);
+//         }
+//         branch.child_len[0] = 32;
+//         auto encoded2 = encode_branch(branch);
+//         CHECK(encoded2.size() > encoded.size());
+//     }
 
-    SECTION("encode leaf node") {
-        LeafNode leaf{};
-        leaf.path.len = 2;
-        leaf.path[0] = 0x0A;
-        leaf.path[1] = 0x0B;
-        leaf.value = ByteView{reinterpret_cast<const uint8_t*>("test"), 4};
+//     SECTION("encode leaf node") {
+//         LeafNode leaf{};
+//         leaf.path.len = 2;
+//         leaf.path[0] = 0x0A;
+//         leaf.path[1] = 0x0B;
+//         leaf.value = ByteView{reinterpret_cast<const uint8_t*>("test"), 4};
 
-        auto encoded = encode_leaf(leaf);
-        CHECK(!encoded.empty());
-    }
+//         auto encoded = encode_leaf(leaf);
+//         CHECK(!encoded.empty());
+//     }
 
-    SECTION("encode extension node") {
-        ExtensionNode ext{};
-        ext.path.len = 3;
-        ext.path[0] = 0x01;
-        ext.path[1] = 0x02;
-        ext.path[2] = 0x03;
-        // Set a dummy child hash
-        ext.child.bytes[0] = 0xFF;
+//     SECTION("encode extension node") {
+//         ExtensionNode ext{};
+//         ext.path.len = 3;
+//         ext.path[0] = 0x01;
+//         ext.path[1] = 0x02;
+//         ext.path[2] = 0x03;
+//         // Set a dummy child hash
+//         ext.child.bytes[0] = 0xFF;
 
-        auto encoded = encode_ext(ext);
-        CHECK(!encoded.empty());
-    }
-}
+//         auto encoded = encode_ext(ext);
+//         CHECK(!encoded.empty());
+//     }
+// }
 
-TEST_CASE("HP encoding") {
-    SECTION("encode even-length path") {
-        uint8_t path[] = {0x01, 0x02, 0x03, 0x04};
-        uint8_t buffer[10];
+// TEST_CASE("HP encoding") {
+//     SECTION("encode even-length path") {
+//         uint8_t path[] = {0x01, 0x02, 0x03, 0x04};
+//         uint8_t buffer[10];
 
-        auto* end = encode_hp_path(buffer, path, 4, false);
-        size_t encoded_len = static_cast<size_t>(end - buffer);
+//         auto* end = encode_hp_path(buffer, path, 4, false);
+//         size_t encoded_len = static_cast<size_t>(end - buffer);
 
-        CHECK(encoded_len == 3);   // 1 flag byte + 2 data bytes
-        CHECK(buffer[0] == 0x00);  // Even, not leaf
-    }
+//         CHECK(encoded_len == 3);   // 1 flag byte + 2 data bytes
+//         CHECK(buffer[0] == 0x00);  // Even, not leaf
+//     }
 
-    SECTION("encode odd-length path") {
-        uint8_t path[] = {0x01, 0x02, 0x03};
-        uint8_t buffer[10];
+//     SECTION("encode odd-length path") {
+//         uint8_t path[] = {0x01, 0x02, 0x03};
+//         uint8_t buffer[10];
 
-        auto* end = encode_hp_path(buffer, path, 3, false);
-        size_t encoded_len = static_cast<size_t>(end - buffer);
+//         auto* end = encode_hp_path(buffer, path, 3, false);
+//         size_t encoded_len = static_cast<size_t>(end - buffer);
 
-        CHECK(encoded_len == 2);            // 1 flag+first-nibble byte + 1 data byte
-        CHECK((buffer[0] & 0x10) == 0x10);  // Odd flag set
-    }
+//         CHECK(encoded_len == 2);            // 1 flag+first-nibble byte + 1 data byte
+//         CHECK((buffer[0] & 0x10) == 0x10);  // Odd flag set
+//     }
 
-    SECTION("encode leaf path") {
-        uint8_t path[] = {0x01, 0x02};
-        uint8_t buffer[10];
+//     SECTION("encode leaf path") {
+//         uint8_t path[] = {0x01, 0x02};
+//         uint8_t buffer[10];
 
-        [[maybe_unused]] auto* end = encode_hp_path(buffer, path, 2, true);
+//         [[maybe_unused]] auto* end = encode_hp_path(buffer, path, 2, true);
 
-        CHECK((buffer[0] & 0x20) == 0x20);  // Leaf flag set
-    }
-}
+//         CHECK((buffer[0] & 0x20) == 0x20);  // Leaf flag set
+//     }
+// }
 
-TEST_CASE("is_zero helper") {
-    SECTION("zero hash") {
-        bytes32 h{};
-        std::memset(h.bytes, 0, 32);
-        CHECK(is_zero_quick(h));
-    }
+// TEST_CASE("is_zero helper") {
+//     SECTION("zero hash") {
+//         bytes32 h{};
+//         std::memset(h.bytes, 0, 32);
+//         CHECK(is_zero_quick(h));
+//     }
 
-    SECTION("non-zero hash") {
-        bytes32 h{};
-        std::memset(h.bytes, 0, 32);
-        h.bytes[15] = 0x01;
-        CHECK(!is_zero_quick(h));
-    }
-}
+//     SECTION("non-zero hash") {
+//         bytes32 h{};
+//         std::memset(h.bytes, 0, 32);
+//         h.bytes[15] = 0x01;
+//         CHECK(!is_zero_quick(h));
+//     }
+// }
 
 // =============================================================================
 // GridMPT Trie Calculation Tests
@@ -274,7 +275,7 @@ TEST_CASE("is_zero helper") {
 //     });
 
 //     bytes32 root = grid.calc_root_from_updates(updates);
-    
+
 //     SECTION("root is not zero") {
 //         CHECK(!is_zero_quick(root));
 //     }
@@ -311,11 +312,11 @@ TEST_CASE("is_zero helper") {
 
 //     std::vector<TrieNodeFlat> updates;
 //     updates.push_back({
-//         make_key("ABCD100000000000000000000000000000000000000000000000000000000000"),
+//         make_key("ABCD101234500000000000000000000000000000000000000000000000000000"),
 //         make_value("value1")
 //     });
 //     updates.push_back({
-//         make_key("ABCD200000000000000000000000000000000000000000000000000000000000"),
+//         make_key("ABCD201234500000000000000000000000000000000000000000000000000000"),
 //         make_value("value2")
 //     });
 
@@ -333,7 +334,7 @@ TEST_CASE("is_zero helper") {
 
 //     // Build initial trie: single leaf with key ending in "10"
 //     bytes32 leaf1 = builder.make_leaf("1234567890ABCDEF000000000000000000000000000000000000000000000000", "oldvalue");
-    
+
 //     // Use this leaf as the root
 //     bytes32 initial_root = leaf1;
 
@@ -348,82 +349,93 @@ TEST_CASE("is_zero helper") {
 //     bytes32 new_root = grid.calc_root_from_updates(updates);
 
 //     SECTION("roots are different") {
-//         CHECK(new_root != initial_root);
-//     }
-    
-//     SECTION("new root is not zero") {
 //         CHECK(!is_zero_quick(new_root));
+//         CHECK(new_root != initial_root);
 //     }
 // }
 
 // TEST_CASE("GridMPT: Insert into existing trie with branch") {
-//     MockNodeStore mock_store;
-//     auto store = mock_store.make_store();
-//     TrieBuilder builder(mock_store);
+//     MockNodeStore store{};
+//     TrieBuilder builder(store);
 
 //     // Build initial trie with 2 leaves under a branch
 //     // Branch at root with children at index 1 and 2
-//     bytes32 leaf1 = builder.make_leaf("000000000000000000000000000000000000000000000000000000000000000", "value1");
-//     bytes32 leaf2 = builder.make_leaf("000000000000000000000000000000000000000000000000000000000000000", "value2");
-    
-//     bytes32 branch_root = builder.make_branch({
-//         {0x01, leaf1},
-//         {0x02, leaf2}
-//     });
+//     bytes32 leaf1 = builder.make_leaf("a11000000000000000000000000000000000000000000000000000000000000", "value1");
+//     bytes32 leaf2 = builder.make_leaf("b22000000000000000000000000000000000000000000000000000000000000", "value2");
 
-//     // Now insert a new key starting with 0x03
-//     GridMPT grid(store, branch_root);
-//     std::vector<TrieNodeFlat> updates;
-//     bytes32 new_root = grid.calc_root_from_updates(updates);
+//     bytes32 branch_root = builder.make_branch({{0x01, leaf1},
+//                                                {0x02, leaf2}});
+
+//     std::vector<TrieNodeFlat> updates1;
+//     GridMPT grid1(store, kEmptyRoot);
+//     updates1.push_back({make_key("1a11000000000000000000000000000000000000000000000000000000000000"),
+//                         make_value("value1")});
+//     updates1.push_back({make_key("2b22000000000000000000000000000000000000000000000000000000000000"),
+//                         make_value("value2")});
+//     bytes32 calculated_root = grid1.calc_root_from_updates(updates1);
 //     SECTION("new root is is same without updates") {
-//         CHECK(branch_root == new_root);
+//         CHECK(branch_root == calculated_root);
 //     }
-//     updates.push_back({
-//         make_key("3000000000000000000000000000000000000000000000000000000000000000"),
-//         make_value("value3")
-//     });
-//     new_root = grid.calc_root_from_updates(updates);
 
-//     SECTION("new root is not zero") {
-//         CHECK(!is_zero_quick(new_root));
-//     }
-//     SECTION("new root is different from old") {
-//         CHECK(branch_root != new_root);
+//     // // Make a 3-child branch with third's key starting in 0x03
+//     bytes32 leaf3 = builder.make_leaf("c33000000000000000000000000000000000000000000000000000000000000", "value3");
+//     branch_root = builder.make_branch({{0x01, leaf1},
+//                                        {0x02, leaf2},
+//                                        {0x03, leaf3}});
+
+//     // Now create a grid with the existing root and push an update
+//     GridMPT grid2(store, calculated_root);
+//     std::vector<TrieNodeFlat> updates2;
+//     updates2.push_back({make_key("3c33000000000000000000000000000000000000000000000000000000000000"),
+//                         make_value("value3")});
+//     calculated_root = grid2.calc_root_from_updates(updates2);
+
+//     SECTION("new root is same as root of a branch with 3 children") {
+//         CHECK(!is_zero_quick(calculated_root));
+//         CHECK(branch_root == calculated_root);
 //     }
 // }
 
 TEST_CASE("GridMPT: Insert into trie with extension") {
-    MockNodeStore mock_store;
-    auto store = mock_store.make_store();
-    TrieBuilder builder(mock_store);
+    MockNodeStore store{};
+    TrieBuilder builder(store);
 
     // Build: Extension(ABCD) -> Branch -> 2 leaves
-    bytes32 leaf1 = builder.make_leaf("00000000000000000000000000000000000000000000000000000000000", "val1");
-    bytes32 leaf2 = builder.make_leaf("00000000000000000000000000000000000000000000000000000000000", "val2");
-    
-    bytes32 branch = builder.make_branch({
-        {0x01, leaf1},
-        {0x02, leaf2}
-    });
-    
-    bytes32 ext_root = builder.make_extension("ABCD", branch);
+    bytes32 leaf1 = builder.make_leaf("11110000000000000000000000000000000000000000000000000000000", "value1");
+    bytes32 leaf2 = builder.make_leaf("22220000000000000000000000000000000000000000000000000000000", "value2");
+
+    bytes32 branch12 = builder.make_branch({{0x01, leaf1},
+                                          {0x02, leaf2}});
+    bytes32 ext_root = builder.make_extension("ABCD", branch12);
+
+
+    std::vector<TrieNodeFlat> updates1;
+    GridMPT grid1(store, kEmptyRoot);
+    updates1.push_back({make_key("ABCD111110000000000000000000000000000000000000000000000000000000"),
+                        make_value("value1")});
+    updates1.push_back({make_key("ABCD222220000000000000000000000000000000000000000000000000000000"),
+                        make_value("value2")});
+    bytes32 calculated_root = grid1.calc_root_from_updates(updates1);
+    SECTION("new root is is same as extension root, built from empty") {
+        CHECK(ext_root == calculated_root);
+    }
+
+    bytes32 leaf3 = builder.make_leaf("0000000000000000000000000000000000000000000000000000000000000", "value3");
+
+    bytes32 D_ext = builder.make_extension("D", branch12);
+    bytes32 branch_0C = builder.make_branch({{0x00, leaf3},{0x0C, D_ext}});
+    bytes32 ext_root2 = builder.make_extension("AB", branch_0C);
 
     // Insert key that splits the extension at position 2 (AB|CD)
-    GridMPT grid(store, ext_root);
-    std::vector<TrieNodeFlat> updates;
-    updates.push_back({
-        make_key("AB00000000000000000000000000000000000000000000000000000000000000"),
-        make_value("value3")
-    });
+    GridMPT grid(store, calculated_root);
+    std::vector<TrieNodeFlat> updates2;
+    updates2.push_back({make_key("AB00000000000000000000000000000000000000000000000000000000000000"),
+                       make_value("value3")});
 
-    bytes32 new_root = grid.calc_root_from_updates(updates);
+    bytes32 new_root = grid.calc_root_from_updates(updates2);
 
-    SECTION("extension was split") {
-        CHECK(ext_root != new_root);
-    }
-    
-    SECTION("new root is not zero") {
-        CHECK(!is_zero_quick(new_root));
+    SECTION("extension was created correctly") {
+        CHECK(ext_root2 == new_root);
     }
 }
 

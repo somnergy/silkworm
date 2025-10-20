@@ -13,6 +13,7 @@
 namespace silkworm::mpt {
 using bytes32 = evmc::bytes32;
 
+// Reserved buffer for RLP encoding
 #if defined(__cpp_threadsafe_static_init) && !defined(NO_THREAD_LOCAL) && !defined(SP1) && !defined(QEMU_DEBUG)
 inline thread_local Bytes static_buffer = []() {
     Bytes buf;
@@ -50,14 +51,26 @@ struct nibbles64 {
 
 struct BranchNode {
     alignas(32) std::array<bytes32, 16> child{};
+    std::array<uint8_t, 16> child_len{};
     uint16_t mask{};
     uint8_t count{};   // number of non-empty children
     ByteView value{};  // RLP "value" payload view (empty if none)
+
+    inline void set_child(uint8_t slot, Bytes& b) {
+        std::memcpy(child[slot].bytes, b.data(), b.size());
+        child_len[slot] = static_cast<uint8_t>(b.size());
+    }
 };
 
 struct ExtensionNode {
     nibbles64 path;
     bytes32 child{};
+    uint8_t child_len;
+
+    inline void set_child(Bytes& b) {
+        std::memcpy(child.bytes, b.data(), b.size());
+        child_len = static_cast<uint8_t>(b.size());
+    }
 };
 
 struct LeafNode {
@@ -70,6 +83,9 @@ inline bool is_zero_quick(const bytes32& h) {
     auto words = std::bit_cast<std::array<std::uint32_t, 8>>(h);
     return (words[0] | words[1] | words[2] | words[3] |
             words[4] | words[5] | words[6] | words[7]) == 0;
+}
+inline bool is_zero_quick(const Bytes& b) {
+    return std::all_of(b.begin(), b.end(), [](uint8_t byte) { return byte == 0; });
 }
 inline void zero(bytes32& h) { std::memset(h.bytes, 0, 32); }
 
@@ -84,16 +100,13 @@ struct GridLine {
     uint8_t parent_slot;   // parent child index (0..15) or 16 = branch value
     uint8_t parent_depth;  // Depth in the stack the current line's parent is at
     uint8_t consumed;      // path nibbles consumed till this node (cumulative)
-    bytes32 hash{};
     union {
         BranchNode branch;
         ExtensionNode ext;
         LeafNode leaf;
     };
 
-    GridLine() : kind(kBranch), parent_slot(0), consumed(0), parent_depth(0), branch{} {
-        // branch{} zero-initializes all members
-    }
+    GridLine() : kind(kBranch), parent_slot(0), parent_depth(0), consumed(0), branch{} {}
     GridLine(uint8_t k, uint8_t pslot, uint8_t pdepth, uint8_t c) : kind{k}, parent_slot{pslot}, parent_depth{pdepth}, consumed{c} {}
 };
 
@@ -101,12 +114,13 @@ struct GridLine {
 // Store interface: get RLP by hash; sink new nodes
 // ---------------------------------------------
 
-struct NodeStore {
-    // Must return the RLP bytes for `hash` (throws/asserts if missing).
-    std::function<ByteView(const bytes32&)> get_rlp;
+class NodeStore {
+  public:
+    virtual ~NodeStore() = default;
 
-    // Optional: sink newly created nodes (hash -> RLP) after fold.
-    std::function<void(const bytes32&, const Bytes&)> put_rlp;
+    // Must return the RLP bytes for `hash` (throw or return empty view if missing)
+    virtual ByteView get_rlp(const bytes32& hash) const = 0;
+    virtual void put_rlp(const bytes32& /*hash*/, const Bytes& /*rlp*/) {}
 };
 
 struct TrieNodeFlat {
@@ -125,10 +139,10 @@ struct TrieNodeFlat {
 class GridMPT {
     uint8_t depth_{0};              // The current depth we are visiting
     uint8_t search_nib_cursor_{0};  // The position in the current search key
-    uint8_t cur_unfold_branch_{0};
+    uint8_t cur_unfold_depth_{0};
     std::array<uint8_t, 16> unfolded_child_{};  // Depths of children of current branch, if unfolded
     // Previous root of the trie
-    bytes32 prev_root;
+    bytes32 prev_root_;
     // A stack of grid-lines consisting of TrieNodes
     std::vector<GridLine> grid_;
     nibbles64 search_nibbles_;    // The current key being searched for/inserted
@@ -140,33 +154,31 @@ class GridMPT {
     bool is_searching_{false};
 
     // A store containing the set of keys to be inserted
-    const NodeStore& node_store_;
+    NodeStore& node_store_;
 
     // Helper methods
-    bool unfold_node_from_hash(const bytes32& hash, uint8_t parent_slot_index, uint8_t parent_depth);
+    bool unfold_node_from_rlp(ByteView rlp, uint8_t parent_slot_index, uint8_t parent_depth);
     bool fold_nibbles(int nib_count);
     uint8_t fold_back();
     bool fold_lines(uint8_t num_lines);
     bytes32 make_leaf_for_suffix(const uint8_t* suffix, uint8_t len, ByteView value);
     LeafNode make_cur_leaf(ByteView value_rlp);
-    bool insert_leaf(uint8_t parent_slot, uint8_t parent_depth, LeafNode& leaf);
-    bool insert_extension(uint8_t parent_slot, uint8_t parent_depth, ExtensionNode& ext);
-    bool insert_branch(uint8_t parent_slot, uint8_t parent_depth, BranchNode& bn);
-
+    void reset_cur_unfolded();
     bool split_leaf();
 
   public:
-    GridMPT(const NodeStore& node_store, bytes32 previous_root_hash) : grid_{},
-                                                                       node_store_{node_store},
-                                                                       prev_root{previous_root_hash} {
+    GridMPT(NodeStore& node_store, bytes32 previous_root_hash) : prev_root_{previous_root_hash},
+                                                                 grid_{},
+                                                                 node_store_{node_store} {
         grid_.reserve(66);  // Reserve max depth to avoid reallocations
     }
+    bool unfold_branch(uint8_t slot);
     // Main algorithm
     bytes32 calc_root_from_updates(const std::vector<TrieNodeFlat>& updates_sorted);
     template <typename NodeType>
     bool insert_line(uint8_t parent_slot, uint8_t parent_depth, NodeType& node);
     template <typename NodeType>
-    bool cast_line(GridLine line, NodeType& node);
+    bool cast_line(GridLine& line, NodeType& node);
 };
 
 }  // namespace silkworm::mpt
