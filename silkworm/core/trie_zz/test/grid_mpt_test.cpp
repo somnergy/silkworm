@@ -56,26 +56,24 @@ bytes32 make_key(const std::string& hex) {
     return key;
 }
 
-ByteView make_value(const std::string& str) {
-    static std::vector<Bytes> values;
-    // RLP-encode the value before storing it
+Bytes make_value(const std::string& str) {
     Bytes encoded;
     rlp::encode(encoded, ByteView{reinterpret_cast<const uint8_t*>(str.data()), str.size()});
-    values.push_back(encoded);
-    return ByteView{values.back()};
+    return encoded;
 }
 
-// Helper to RLP-encode raw hex payloads and keep them alive
-ByteView make_value_hex (const std::string& hex) {
-    static std::vector<Bytes> tmp_storage;
+// Helper to RLP-encode raw hex payloads
+Bytes make_value_hex(const std::string& hex) {
     std::string h = hex;
     if (h.rfind("0x", 0) == 0) h = h.substr(2);
     auto raw = from_hex(h);
+    if (!raw) {
+        return {};
+    }
     Bytes enc;
     rlp::encode(enc, ByteView{raw->data(), raw->size()});
-    tmp_storage.push_back(std::move(enc));
-    return ByteView{tmp_storage.back()};
-};
+    return enc;
+}
 
 // Helper to build a simple trie manually
 struct TrieBuilder {
@@ -95,7 +93,8 @@ struct TrieBuilder {
         for (char c : hex_suffix) {
             leaf.path[leaf.path.len++] = hex_to_nibble(c);
         }
-        leaf.value = make_value(value);
+        Bytes value_rlp = make_value(value);
+        leaf.value = ByteView{value_rlp};
         Bytes encoded = encode_leaf(leaf);
         bytes32 hash = keccak_bytes(encoded);
         store.insert(hash, encoded);
@@ -108,7 +107,8 @@ struct TrieBuilder {
         for (char c : hex_suffix) {
             leaf.path[leaf.path.len++] = hex_to_nibble(c);
         }
-        leaf.value = make_value_hex(value);
+        Bytes value_rlp = make_value_hex(value);
+        leaf.value = ByteView{value_rlp};
         Bytes encoded = encode_leaf(leaf);
         bytes32 hash = keccak_bytes(encoded);
         store.insert(hash, encoded);
@@ -423,48 +423,48 @@ struct TrieBuilder {
 
 // ABCD -> [1, 2] -> l1, l2
 // AB -> [0,c] -> 0:l3, C:D; D-> [1,2]
-// TEST_CASE("GridMPT: Insert into trie with extension") {
-//     MockNodeStore store{};
-//     TrieBuilder builder(store);
+TEST_CASE("GridMPT: Insert into trie with extension") {
+    MockNodeStore store{};
+    TrieBuilder builder(store);
 
-//     // Build: Extension(ABCD) -> Branch -> 2 leaves
-//     bytes32 leaf1 = builder.make_leaf("11110000000000000000000000000000000000000000000000000000000", "value1");
-//     bytes32 leaf2 = builder.make_leaf("22220000000000000000000000000000000000000000000000000000000", "value2");
+    // Build: Extension(ABCD) -> Branch -> 2 leaves
+    bytes32 leaf1 = builder.make_leaf("11110000000000000000000000000000000000000000000000000000000", "value1");
+    bytes32 leaf2 = builder.make_leaf("22220000000000000000000000000000000000000000000000000000000", "value2");
 
-//     bytes32 branch12 = builder.make_branch({{0x01, leaf1},
-//                                           {0x02, leaf2}});
-//     bytes32 ext_root = builder.make_extension("ABCD", branch12);
+    bytes32 branch12 = builder.make_branch({{0x01, leaf1},
+                                          {0x02, leaf2}});
+    bytes32 ext_root = builder.make_extension("ABCD", branch12);
 
-//     std::vector<TrieNodeFlat> updates1;
-//     GridMPT grid1(store, kEmptyRoot);
-//     updates1.push_back({make_key("ABCD111110000000000000000000000000000000000000000000000000000000"),
-//                         make_value("value1")});
-//     updates1.push_back({make_key("ABCD222220000000000000000000000000000000000000000000000000000000"),
-//                         make_value("value2")});
-//     bytes32 calculated_root = grid1.calc_root_from_updates(updates1);
-//     SECTION("new root is is same as extension root, built from empty") {
-//         CHECK(ext_root == calculated_root);
-//     }
+    std::vector<TrieNodeFlat> updates1;
+    GridMPT grid1(store, kEmptyRoot);
+    updates1.push_back({make_key("ABCD111110000000000000000000000000000000000000000000000000000000"),
+                        make_value("value1")});
+    updates1.push_back({make_key("ABCD222220000000000000000000000000000000000000000000000000000000"),
+                        make_value("value2")});
+    bytes32 calculated_root = grid1.calc_root_from_updates(updates1);
+    SECTION("new root is is same as extension root, built from empty") {
+        CHECK(ext_root == calculated_root);
+    }
 
-//     bytes32 leaf3 = builder.make_leaf("0000000000000000000000000000000000000000000000000000000000000", "value3");
+    bytes32 leaf3 = builder.make_leaf("0000000000000000000000000000000000000000000000000000000000000", "value3");
 
-//     bytes32 D_ext = builder.make_extension("D", branch12);
-//     bytes32 branch_0C = builder.make_branch({{0x00, leaf3},{0x0C, D_ext}});
-//     bytes32 ext_root2 = builder.make_extension("AB", branch_0C);
+    bytes32 D_ext = builder.make_extension("D", branch12);
+    bytes32 branch_0C = builder.make_branch({{0x00, leaf3},{0x0C, D_ext}});
+    bytes32 ext_root2 = builder.make_extension("AB", branch_0C);
 
-//     GridMPT grid(store, calculated_root);
-//     std::vector<TrieNodeFlat> updates2;
-//     updates2.push_back({make_key("AB00000000000000000000000000000000000000000000000000000000000000"),
-//                        make_value("value3")});
+    GridMPT grid(store, calculated_root);
+    std::vector<TrieNodeFlat> updates2;
+    updates2.push_back({make_key("AB00000000000000000000000000000000000000000000000000000000000000"),
+                       make_value("value3")});
 
-//     bytes32 new_root = grid.calc_root_from_updates(updates2);
+    bytes32 new_root = grid.calc_root_from_updates(updates2);
 
-//     SECTION("extension was created correctly") {
-//         CHECK(ext_root2 == new_root);
-//     }
-// }
+    SECTION("extension was created correctly") {
+        CHECK(ext_root2 == new_root);
+    }
+}
 
-TEST_CASE("GridMPT: Ethereum/tests 1") {
+TEST_CASE("GridMPT: 4-level, multi-ext, multi-branch") {
     MockNodeStore store{};
     TrieBuilder builder(store);
 
@@ -476,26 +476,25 @@ TEST_CASE("GridMPT: Ethereum/tests 1") {
     auto branch01 = builder.make_branch({
         {0x00, ext0_4},
         // {0x01, builder.make_leaf_hex("234567890", "")}
-        {0x01, builder.make_leaf_hex("234567890", "0xbabe")}
-    });
+        {0x01, builder.make_leaf_hex("234567890", "0x")}});
     auto ext_00_29 = builder.make_extension("00000000000000000000000000000", branch01);
     auto branch067e = builder.make_branch({
         {0x00, ext_00_29},
         {0x06, builder.make_leaf_hex("97c7b8c961b56f675d570498424ac8de1a918f6", "0x6f6f6f6820736f2067726561742c207265616c6c6c793f000000000000000000")},
         {0x07, builder.make_leaf_hex("ef9e639e2733cb34e4dfc576d4b23f72db776b2", "0x4655474156000000000000000000000000000000000000000000000000000000")},
-        {0x0e, builder.make_leaf_hex("c4f34c97e43fbb2816cfd95e388353c7181dab1", "0x4e616d6552656700000000000000000000000000000000000000000000000000")}
+        {0x0e, builder.make_leaf_hex("c4f34c97e43fbb2816cfd95e388353c7181dab1", "0x4e616d6552656700000000000000000000000000000000000000000000000000")},
     });
     auto ext_00_23 = builder.make_extension("00000000000000000000000", branch067e);
-    
+
     auto branch6e = builder.make_branch({
-        {0x06, builder.make_leaf_hex("55474156000000000000000000000000000000000000000000000000000000", "0x7ef9e639e2733cb34e4dfc576d4b23f72db776b2" )},
-        {0x0e, builder.make_leaf_hex("616d6552656700000000000000000000000000000000000000000000000000", "0xec4f34c97e43fbb2816cfd95e388353c7181dab1")}
+        {0x06, builder.make_leaf_hex("55474156000000000000000000000000000000000000000000000000000000", "0x7ef9e639e2733cb34e4dfc576d4b23f72db776b2")},
+        {0x0e, builder.make_leaf_hex("616d6552656700000000000000000000000000000000000000000000000000", "0xec4f34c97e43fbb2816cfd95e388353c7181dab1")},
     });
 
     auto branch046 = builder.make_branch({
         {0x00, ext_00_23},
         {0x04, branch6e},
-        {0x06, builder.make_leaf_hex("f6f6f6820736f2067726561742c207265616c6c6c793f000000000000000000", "0x697c7b8c961b56f675d570498424ac8de1a918f6")}
+        {0x06, builder.make_leaf_hex("f6f6f6820736f2067726561742c207265616c6c6c793f000000000000000000", "0x697c7b8c961b56f675d570498424ac8de1a918f6")},
     });
 
     std::vector<TrieNodeFlat> updates;
@@ -503,9 +502,9 @@ TEST_CASE("GridMPT: Ethereum/tests 1") {
 
     updates.push_back({make_key("0000000000000000000000000000000000000000000000000000000000000046"), make_value_hex("0x67706c2076330000000000000000000000000000000000000000000000000000")});
 
-    // updates.push_back({make_key("0000000000000000000000000000000000000000000000000000001234567890"), ByteView{}});
+    // updates.push_back({make_key("0000000000000000000000000000000000000000000000000000001234567890"), Bytes{}});
 
-    updates.push_back({make_key("0000000000000000000000000000000000000000000000000000001234567890"), make_value_hex("0xbabe")});
+    updates.push_back({make_key("0000000000000000000000000000000000000000000000000000001234567890"), make_value_hex("0x")});
 
     updates.push_back({make_key("000000000000000000000000697c7b8c961b56f675d570498424ac8de1a918f6"), make_value_hex("0x6f6f6f6820736f2067726561742c207265616c6c6c793f000000000000000000")});
 
@@ -515,9 +514,9 @@ TEST_CASE("GridMPT: Ethereum/tests 1") {
 
     updates.push_back({make_key("4655474156000000000000000000000000000000000000000000000000000000"), make_value_hex("0x7ef9e639e2733cb34e4dfc576d4b23f72db776b2")});
 
-    // updates.push_back({make_key("4e616d6552656700000000000000000000000000000000000000000000000000"), make_value_hex("0xec4f34c97e43fbb2816cfd95e388353c7181dab1")});
+    updates.push_back({make_key("4e616d6552656700000000000000000000000000000000000000000000000000"), make_value_hex("0xec4f34c97e43fbb2816cfd95e388353c7181dab1")});
 
-    // updates.push_back({make_key("6f6f6f6820736f2067726561742c207265616c6c6c793f000000000000000000"), make_value_hex("0x697c7b8c961b56f675d570498424ac8de1a918f6")});
+    updates.push_back({make_key("6f6f6f6820736f2067726561742c207265616c6c6c793f000000000000000000"), make_value_hex("0x697c7b8c961b56f675d570498424ac8de1a918f6")});
 
     GridMPT grid(store, kEmptyRoot);
     bytes32 calculated_root = grid.calc_root_from_updates(updates);
@@ -525,12 +524,12 @@ TEST_CASE("GridMPT: Ethereum/tests 1") {
     // SECTION("check root against given root") {
     //     CHECK(expected_root == calculated_root);
     // }
-    // std::cout<< "branch046: " <<to_hex(branch046.bytes) << std::endl;
-    SECTION("Check calculated root matches that of branch046"){
+    std::cout<< "branch046: " <<to_hex(branch046.bytes) << std::endl;
+    SECTION("Check calculated root matches that of branch046") {
         CHECK(branch046 == calculated_root);
     }
 
-    SECTION("bla bla"){
+    SECTION("bla bla") {
         CHECK(!is_zero_quick(calculated_root));
         CHECK(!is_zero_quick(ext_00_29));
         CHECK(!is_zero_quick(branch067e));

@@ -125,7 +125,7 @@ class NodeStore {
 
 struct TrieNodeFlat {
     bytes32 key;
-    ByteView value_rlp;
+    Bytes value_rlp;
 };
 
 // A class holding the data for the Trie root calculation

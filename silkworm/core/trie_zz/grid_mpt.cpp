@@ -209,28 +209,29 @@ inline bool GridMPT::cast_line(GridLine& line, NodeType& node) {
         parent_consumed = parent_consumed - line.ext.path.len;
     } else if (line.kind == kBranch) {
         parent_consumed = parent_consumed - 1;
-    } else [[unlikely]] {  // leaf
-        parent_consumed = 0;
+    } else {  // leaf
+        parent_consumed = parent_consumed - line.leaf.path.len;
     }
 
     Kind kind;
     uint8_t consumed;
     if constexpr (std::is_same_v<NodeType, LeafNode>) {
         kind = kLeaf;
-        consumed = 64;
+        line.consumed = 64;
         std::memcpy(std::addressof(line.leaf), &node, sizeof(node));
         return true;
     } else if constexpr (std::is_same_v<NodeType, ExtensionNode>) {
         kind = kExt;
         consumed = node.path.len;
         std::memcpy(std::addressof(line.ext), &node, sizeof(node));
+        line.consumed = consumed + parent_consumed;
     } else {
         kind = kBranch;
         consumed = 1;
         std::memcpy(std::addressof(line.branch), &node, sizeof(node));
+        line.consumed = consumed + parent_consumed;
     }
     line.kind = kind;
-    line.consumed = consumed + parent_consumed;
     return true;
 }
 
@@ -298,7 +299,8 @@ bytes32 GridMPT::calc_root_from_updates(const std::vector<TrieNodeFlat>& updates
         unfold_node_from_rlp(rlp, 0, 0);
     }
 
-    for (auto trie_upd : updates_sorted) {
+    for (const auto& trie_upd : updates_sorted) {
+        const ByteView value_view{trie_upd.value_rlp};
         auto new_nibbles = nibbles64::from_bytes32(trie_upd.key);
         std::cout << "Loop " << to_hex(trie_upd.key.bytes) << "\n";
         if (search_nibbles_.len > 0 && grid_.size() > 1) {
@@ -308,7 +310,7 @@ bytes32 GridMPT::calc_root_from_updates(const std::vector<TrieNodeFlat>& updates
         auto& grid_line = grid_[depth_];
         search_nibbles_ = new_nibbles;  // TODO: Copy or Ref???
         if (grid_line.consumed == 0) {  // Empty trie
-            LeafNode l{search_nibbles_, 0, trie_upd.value_rlp};
+            LeafNode l{search_nibbles_, 0, value_view};
             insert_line(0, 0, l);
             continue;  // to the next update
         }
@@ -317,7 +319,7 @@ bytes32 GridMPT::calc_root_from_updates(const std::vector<TrieNodeFlat>& updates
                 auto nib = search_nibbles_[search_nib_cursor_];
                 if (!unfold_branch(nib)) {
                     // Child is empty
-                    auto l = make_cur_leaf(trie_upd.value_rlp);
+                    auto l = make_cur_leaf(value_view);
                     insert_line(l.parent_slot, depth_, l);
                     break;
                 }
@@ -384,7 +386,7 @@ bytes32 GridMPT::calc_root_from_updates(const std::vector<TrieNodeFlat>& updates
                         grid_[depth_].branch.child[old_ext.path[m]] = old_ext.child;
                         grid_[depth_].branch.child_len[old_ext.path[m]] = old_ext.child_len;
                     }
-                    auto l = make_cur_leaf(trie_upd.value_rlp);
+                    auto l = make_cur_leaf(value_view);
                     insert_line(l.parent_slot, depth_, l);
                     break;  // insertion complete
                 }
@@ -394,9 +396,9 @@ bytes32 GridMPT::calc_root_from_updates(const std::vector<TrieNodeFlat>& updates
                 // Note: grid_line.leaf.path.len == (64 - search_nib_cursor_)
 
                 size_t cp = 0;
-                while (grid_[depth_].leaf.path[cp] == search_nibbles_[search_nib_cursor_ + cp] && cp < grid_[depth_].leaf.path.len) ++cp;
+                while (grid_line.leaf.path[cp] == search_nibbles_[search_nib_cursor_ + cp] && cp < grid_line.leaf.path.len) ++cp;
                 if (search_nib_cursor_ + cp == 64) {  // This path exists, update the value
-                    grid_[depth_].leaf.value = trie_upd.value_rlp;
+                    grid_[depth_].leaf.value = value_view;
                     break;  // update complete
                 }
 
@@ -429,7 +431,7 @@ bytes32 GridMPT::calc_root_from_updates(const std::vector<TrieNodeFlat>& updates
                                  static_cast<size_t>(old_leaf.path.len));
                 }
                 // Insert the leaves to the branch (which is at depth_ now) as parent
-                auto l = make_cur_leaf(trie_upd.value_rlp);  // sets parent_slot too at l, with first nib
+                auto l = make_cur_leaf(value_view);          // sets parent_slot too at l, with first nib
                 if (old_leaf.parent_slot > l.parent_slot) {  // ordering
                     insert_line(old_leaf.parent_slot, depth_, old_leaf);
                     insert_line(l.parent_slot, depth_ - 1, l);
