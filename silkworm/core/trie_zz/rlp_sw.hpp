@@ -40,9 +40,9 @@ inline Bytes encode_branch(const BranchNode& b) {
     // Add value field
     h.payload_length += rlp::length(b.value);
 
-    // FIX: Reserve correctly with +1 for list header byte
-    const size_t total_size = 1 + rlp::length_of_length(h.payload_length) + h.payload_length;
-    static_buffer.reserve(total_size);
+    // // FIX: Reserve correctly with +1 for list header byte
+    // const size_t total_size = 1 + rlp::length_of_length(h.payload_length) + h.payload_length;
+    // static_buffer.reserve(total_size);
 
     rlp::encode_header(static_buffer, h);
 
@@ -72,9 +72,9 @@ inline Bytes encode_ext(const ExtensionNode& e) {
     h.payload_length += rlp::length(hp_encoded);
     h.payload_length += rlp::length(ByteView{e.child.bytes, 32});
 
-    // FIX: Reserve correctly with +1 for list header byte
-    const size_t total_size = 1 + rlp::length_of_length(h.payload_length) + h.payload_length;
-    static_buffer.reserve(total_size);
+    // // FIX: Reserve correctly with +1 for list header byte
+    // const size_t total_size = 1 + rlp::length_of_length(h.payload_length) + h.payload_length;
+    // static_buffer.reserve(total_size);
 
     rlp::encode_header(static_buffer, h);
     rlp::encode(static_buffer, hp_encoded);
@@ -95,14 +95,13 @@ inline Bytes encode_leaf(const LeafNode& l) {
     h.payload_length += rlp::length(hp_encoded);
     h.payload_length += rlp::length(l.value);
 
-    // FIX: Reserve correctly with +1 for list header byte
-    const size_t total_size = 1 + rlp::length_of_length(h.payload_length) + h.payload_length;
-    static_buffer.reserve(total_size);
+    // // FIX: Reserve correctly with +1 for list header byte
+    // const size_t total_size = 1 + rlp::length_of_length(h.payload_length) + h.payload_length;
+    // static_buffer.reserve(total_size);
 
     rlp::encode_header(static_buffer, h);
     rlp::encode(static_buffer, hp_encoded);
     rlp::encode(static_buffer, l.value);
-
     return static_buffer;
 }
 

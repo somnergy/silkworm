@@ -31,26 +31,6 @@ inline uint8_t* encode_hp_path(uint8_t* out, const uint8_t* nib, size_t n, bool 
     return out;
 }
 
-// static Bytes encode_path(ByteView nibbles, bool terminating) {
-//     Bytes res(nibbles.size() / 2 + 1, '\0');
-//     const bool odd{static_cast<bool>((nibbles.size() & 1u) != 0)};
-
-//     res[0] = terminating ? 0x20 : 0x00;
-//     res[0] += odd ? 0x10 : 0x00;
-
-//     if (odd) {
-//         res[0] |= nibbles[0];
-//         nibbles.remove_prefix(1);
-//     }
-
-//     for (auto it{std::next(res.begin(), 1)}, end{res.end()}; it != end; ++it) {
-//         *it = static_cast<uint8_t>((nibbles[0] << 4) + nibbles[1]);
-//         nibbles.remove_prefix(2);
-//     }
-
-//     return res;
-// }
-
 // HP decode → (is_leaf, nibbles[]). Returns false on malformed.
 inline bool hp_decode(ByteView in, bool& is_leaf, std::array<uint8_t, 64>& out, uint8_t& out_len) {
     if (in.empty()) return false;

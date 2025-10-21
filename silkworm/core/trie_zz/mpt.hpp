@@ -161,10 +161,10 @@ class GridMPT {
     bool fold_nibbles(int nib_count);
     uint8_t fold_back();
     bool fold_lines(uint8_t num_lines);
-    bytes32 make_leaf_for_suffix(const uint8_t* suffix, uint8_t len, ByteView value);
+    // bytes32 make_leaf_for_suffix(const uint8_t* suffix, uint8_t len, ByteView value);
     LeafNode make_cur_leaf(ByteView value_rlp);
     void reset_cur_unfolded();
-    bool split_leaf();
+    // bool split_leaf();
 
   public:
     GridMPT(NodeStore& node_store, bytes32 previous_root_hash) : prev_root_{previous_root_hash},
@@ -173,6 +173,7 @@ class GridMPT {
         grid_.reserve(66);  // Reserve max depth to avoid reallocations
     }
     bool unfold_branch(uint8_t slot);
+    void seek_with_last_insert(nibbles64& new_nibbles);
     // Main algorithm
     bytes32 calc_root_from_updates(const std::vector<TrieNodeFlat>& updates_sorted);
     template <typename NodeType>

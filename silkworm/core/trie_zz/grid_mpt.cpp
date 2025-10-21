@@ -88,16 +88,16 @@ inline bool GridMPT::fold_nibbles(int nib_count) {
     while (depth_ < grid_.size() - 1) {
         fold_back();
     }
-    while (nib_count > 0) {
+    while (nib_count > 0 && grid_.size() > 1) {
         nib_count -= fold_back();
+        depth_--;
     }
     return true;
 }
 
 // Fold the last line from the bottom and returns the number of nibbles consumed
 inline uint8_t GridMPT::fold_back() {
-    auto grid_line = grid_.back();  // Get the last element
-    grid_.pop_back();               // Remove it from the vector
+    auto& grid_line = grid_.back();
 
     auto node_ref = encode_line(grid_line);
     if (node_ref.size() >= 32) {
@@ -111,6 +111,9 @@ inline uint8_t GridMPT::fold_back() {
         switch (parent.kind) {
             case kBranch:
                 parent.branch.set_child(grid_line.parent_slot, node_ref);
+                if (cur_unfold_depth_ == grid_line.parent_depth) {
+                    unfolded_child_[grid_line.parent_slot] = 0;
+                }
                 break;
             case kExt:
                 parent.ext.set_child(node_ref);
@@ -118,6 +121,10 @@ inline uint8_t GridMPT::fold_back() {
             default:
                 break;
         }
+    }
+    grid_.pop_back();
+    if (cur_unfold_depth_ == grid_.size()) {
+        reset_cur_unfolded();
     }
     return consumed;
 }
@@ -133,18 +140,6 @@ inline bool GridMPT::fold_lines(uint8_t num_lines) {
         --num_lines;
     }
     return true;
-}
-
-// Create a leaf for remaining key suffix (after consuming one child nibble already if needed)
-inline bytes32 GridMPT::make_leaf_for_suffix(const uint8_t* suffix, uint8_t len, ByteView value) {
-    LeafNode l{};
-    l.path.len = len;
-    if (len) std::memcpy(l.path.nib.data(), suffix, len);
-    l.value = value;
-    Bytes enc = encode_leaf(l);
-    bytes32 h = keccak_bytes(enc);
-    node_store_.put_rlp(h, enc);
-    return h;
 }
 
 // Make a leaf of path after cursor of current search key
@@ -208,6 +203,16 @@ inline bool GridMPT::insert_line(uint8_t parent_slot, uint8_t parent_depth, Node
 template <typename NodeType>
 // Cast a given GridLine to a node of NodeType
 inline bool GridMPT::cast_line(GridLine& line, NodeType& node) {
+    // extract parent_consumed info from existing line's consumed var
+    auto parent_consumed = line.consumed;  // cumulative
+    if (line.kind == kExt) {
+        parent_consumed = parent_consumed - line.ext.path.len;
+    } else if (line.kind == kBranch) {
+        parent_consumed = parent_consumed - 1;
+    } else [[unlikely]] {  // leaf
+        parent_consumed = 0;
+    }
+
     Kind kind;
     uint8_t consumed;
     if constexpr (std::is_same_v<NodeType, LeafNode>) {
@@ -224,16 +229,6 @@ inline bool GridMPT::cast_line(GridLine& line, NodeType& node) {
         consumed = 1;
         std::memcpy(std::addressof(line.branch), &node, sizeof(node));
     }
-
-    // extract parent_consumed info from existing line's consumed var
-    auto parent_consumed = line.consumed;  // cumulative
-    if (line.kind == kExt) {
-        parent_consumed = parent_consumed - line.ext.path.len;
-    } else if (line.kind == kBranch) {
-        parent_consumed = parent_consumed - 1;
-    } else [[unlikely]] {  // leaf
-        parent_consumed = 0;
-    }
     line.kind = kind;
     line.consumed = consumed + parent_consumed;
     return true;
@@ -246,7 +241,7 @@ inline bool GridMPT::unfold_branch(uint8_t slot) {
         return true;
     }
     auto child_len = grid_[depth_].branch.child_len[slot];
-    if (child_len < 2) {  // empty, nothing to "unfold"
+    if (child_len == 0) {  // empty, nothing to "unfold"
         return false;
     }
     auto child = grid_[depth_].branch.child[slot];
@@ -262,6 +257,38 @@ inline bool GridMPT::unfold_branch(uint8_t slot) {
     return true;
 }
 
+// Find the least common path of current key from the top, with the last key as reference
+inline void GridMPT::seek_with_last_insert(nibbles64& new_nibbles) {
+    //================================================
+    // The last leaf must have been inserted to a branch
+    // If consumed - 1 < lcp, the new leaf shares path, have to split
+    // if lcp == consumed - 1, fold the leaf, we are at common parent branch
+    // if lcp < consumed - 1, fold the leaf line and more nibbles;
+    //    we are higher and right of common branch and will not need
+    //    to visit this branch again
+    //================================================
+    size_t lcp = 0;
+    auto& parent_depth = grid_[depth_].parent_depth;
+    auto& parent_branch = grid_[parent_depth];
+    while (new_nibbles[lcp] == search_nibbles_[lcp] && lcp < parent_branch.consumed) ++lcp;
+    int fold_for = parent_branch.consumed - lcp - 1;
+
+    if (fold_for < 0) {
+        search_nib_cursor_ = parent_branch.consumed;  // start from the existing leaf's path
+    } else {
+        fold_back();  // fold the last leaf
+        depth_ = parent_depth;
+        if (fold_for > 0) {
+            fold_nibbles(fold_for);
+        }
+        if (depth_ == 0) {
+            search_nib_cursor_ = 0;
+        } else {
+            search_nib_cursor_ = grid_[grid_[depth_].parent_depth].consumed;
+        }
+    }
+}
+
 // Unfold from root as we traverse through the list of account updates
 // Finally return the root
 bytes32 GridMPT::calc_root_from_updates(const std::vector<TrieNodeFlat>& updates_sorted) {
@@ -273,39 +300,20 @@ bytes32 GridMPT::calc_root_from_updates(const std::vector<TrieNodeFlat>& updates
 
     for (auto trie_upd : updates_sorted) {
         auto new_nibbles = nibbles64::from_bytes32(trie_upd.key);
-
+        std::cout << "Loop " << to_hex(trie_upd.key.bytes) << "\n";
         if (search_nibbles_.len > 0 && grid_.size() > 1) {
-            // Previous leaf exists, and it's in a branch
-            // Find the least common path (from the top) with the last inserted key's nibbles as reference
-            // The last leaf must have been inserted to a branch
-            // If lcp == consumed, the new leaf shares path, have to split
-            // if lcp == consumed - 1, fold the leaf
-            // if lcp < consumed - 1, fold the leaf line and more nibbles
-            size_t lcp = 0;
-            auto& parent_depth = grid_[depth_].parent_depth;
-            while (new_nibbles[lcp] == search_nibbles_[lcp] && lcp < grid_[parent_depth].consumed) ++lcp;
-            int fold_for = grid_[parent_depth].consumed - lcp;
-
-            if (fold_for == 0) {
-                search_nib_cursor_ = grid_[parent_depth].consumed;
-            } else {
-                fold_back();            // fold the last leaf
-                depth_ = parent_depth;  // Set the cursor to parent and fold from here
-                if (!fold_nibbles(fold_for - 1)) {
-                    return bytes32{};
-                }
-                search_nib_cursor_ = grid_[depth_].consumed - 1;
-                std::memset(unfolded_child_.data(), 0, sizeof(unfolded_child_));
-            }
+            // Previous leaf exists, and it's in a branch (can't be ext)
+            seek_with_last_insert(new_nibbles);
         }
-        search_nibbles_ = new_nibbles;      // TODO: Copy or Ref???
-        if (grid_[depth_].consumed == 0) {  // Empty trie
+        auto& grid_line = grid_[depth_];
+        search_nibbles_ = new_nibbles;  // TODO: Copy or Ref???
+        if (grid_line.consumed == 0) {  // Empty trie
             LeafNode l{search_nibbles_, 0, trie_upd.value_rlp};
             insert_line(0, 0, l);
             continue;  // to the next update
         }
         while (depth_ < 64) {  // Searching down
-            if (grid_[depth_].kind == kBranch) {
+            if (grid_line.kind == kBranch) {
                 auto nib = search_nibbles_[search_nib_cursor_];
                 if (!unfold_branch(nib)) {
                     // Child is empty
@@ -314,35 +322,34 @@ bytes32 GridMPT::calc_root_from_updates(const std::vector<TrieNodeFlat>& updates
                     break;
                 }
                 continue;
-            } else if (grid_[depth_].kind == kExt) {
+            } else if (grid_line.kind == kExt) {
                 // go down till the first divergence point
                 uint8_t m = 0;
-                while (m < grid_[depth_].ext.path.len && (search_nib_cursor_ + m) < 64 && grid_[depth_].ext.path[m] == search_nibbles_[search_nib_cursor_ + m])
-                    ++m;
+                while (m < grid_line.ext.path.len && (search_nib_cursor_ + m) < 64 && grid_line.ext.path[m] == search_nibbles_[search_nib_cursor_ + m]) ++m;
                 search_nib_cursor_ += m;
 
-                if (m == grid_[depth_].ext.path.len) {
-                    // Full match -> continue below
-                    ++depth_;
+                if (m == grid_line.ext.path.len) {
+                    // Full match -> unfold child
                     ByteView rlp;
-                    if (grid_[depth_].ext.child_len < 32) {
-                        rlp = ByteView{grid_[depth_].ext.child.bytes, grid_[depth_].ext.child_len};
+                    if (grid_line.ext.child_len < 32) {
+                        rlp = ByteView{grid_line.ext.child.bytes, grid_line.ext.child_len};
                     } else {
-                        rlp = node_store_.get_rlp(grid_[depth_].ext.child);
+                        rlp = node_store_.get_rlp(grid_line.ext.child);
                     }
-                    unfold_node_from_rlp(rlp, search_nibbles_[search_nib_cursor_], depth_ - 1);
+                    unfold_node_from_rlp(rlp, search_nibbles_[search_nib_cursor_], depth_);
                     continue;
                 } else {
                     // We will now insert branch at the divergence point
                     // Note: m is at the point of divergence
                     BranchNode bn{};
-                    auto old_ext{grid_[depth_].ext};
+                    auto old_ext{grid_line.ext};
                     auto ext_path_len = old_ext.path.len;
 
                     if (m > 0) {
                         // Shorten the grid_line current extension till the divergence point
-                        grid_[depth_].ext.path.len = m;
-                        grid_[depth_].ext.child = bytes32{};  // Update later with the created branch
+                        grid_line.consumed = grid_line.consumed - (ext_path_len - m);
+                        grid_line.ext.path.len = m;
+                        grid_line.ext.child = bytes32{};  // Update later with the created branch
                         // insert branch after the shortened extension and mark its parent as it
                         insert_line(0, depth_, bn);
                     } else {
@@ -368,6 +375,7 @@ bytes32 GridMPT::calc_root_from_updates(const std::vector<TrieNodeFlat>& updates
                         insert_line(old_ext.path[m], depth_, ext_mplus1);
                         if (old_ext.path[m] < search_nibbles_[search_nib_cursor_]) {
                             fold_back();  // Don't need to deal with left side nibbles in next iterations
+                            --depth_;
                         } else {
                             depth_ = d;  // set it to the branch
                         }
@@ -430,8 +438,8 @@ bytes32 GridMPT::calc_root_from_updates(const std::vector<TrieNodeFlat>& updates
                     insert_line(old_leaf.parent_slot, depth_ - 1, old_leaf);
                     fold_back();  // No need to keep the left nib
                 }
-
-                break;  // insertion complete
+                depth_ = grid_.size() - 1;  // set to inserted leaf
+                break;                      // insertion complete
             }
         }
     }
