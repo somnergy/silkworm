@@ -7,6 +7,8 @@
 
 #include <silkworm/core/common/empty_hashes.hpp>
 #include <silkworm/core/common/util.hpp>
+#include <silkworm/core/trie/hash_builder.hpp>
+#include <silkworm/core/trie/nibbles.hpp>
 #include <silkworm/core/trie_zz/helpers.hpp>
 #include <silkworm/core/trie_zz/mpt.hpp>
 #include <silkworm/core/trie_zz/rlp_sw.hpp>
@@ -146,9 +148,11 @@ struct TrieBuilder {
 
         auto rlp = store.get_rlp(child_hash);
         if (rlp.size() < 32) {
+            // Embedded node: store the full RLP
             std::memcpy(ext.child.bytes, rlp.data(), rlp.size());
             ext.child_len = rlp.size();
         } else {
+            // Hash reference: store just the 32-byte hash (will be RLP-encoded in encode_ext)
             ext.child = child_hash;
             ext.child_len = 32;
         }
@@ -462,7 +466,7 @@ TEST_CASE("GridMPT: Insert into trie with extension") {
 
     bytes32 new_root = grid.calc_root_from_updates(updates2);
     CHECK(ext_root2 == new_root);
-    
+
     // Clean up for next test
     clear_static_buffer();
 }
@@ -479,10 +483,9 @@ TEST_CASE("GridMPT: 4-level, multi-ext, multi-branch") {
         {0x06, builder.make_leaf_hex("", "0x67706c2076330000000000000000000000000000000000000000000000000000")},
     });
     auto ext0_4 = builder.make_extension("00000004", branch56);
-    auto branch01 = builder.make_branch({
-        {0x00, ext0_4},
+    auto branch01 = builder.make_branch({{0x00, ext0_4},
                                          // {0x01, builder.make_leaf_hex("234567890", "")}
-        {0x01, builder.make_leaf_hex("234567890", "0x")}});
+                                         {0x01, builder.make_leaf_hex("234567890", "0x")}});
     auto ext_00_29 = builder.make_extension("00000000000000000000000000000", branch01);
     auto branch067e = builder.make_branch({
         {0x00, ext_00_29},
@@ -536,4 +539,99 @@ TEST_CASE("GridMPT: 4-level, multi-ext, multi-branch") {
     CHECK(!is_zero_quick(branch067e));
 }
 
+TEST_CASE("HB Test 1") {
+    std::cout << "\n=== Starting HB Test 1 ===" << std::endl;
+    clear_static_buffer();  // Ensure clean RLP buffer state
+    MockNodeStore store2{};
+    store2.clear();  // Ensure clean state
+    TrieBuilder builder(store2);
+
+    auto branch12 = builder.make_branch({
+        {0x01, builder.make_leaf_hex("", "0x01")},
+        {0x02, builder.make_leaf_hex("", "0x02")},
+    });
+    auto ext0_63 = builder.make_extension("000000000000000000000000000000000000000000000000000000000000000", branch12);
+
+    std::vector<TrieNodeFlat> updates;
+    updates.push_back({make_key("0000000000000000000000000000000000000000000000000000000000000001"), make_value_hex("0x01")});
+    updates.push_back({make_key("0000000000000000000000000000000000000000000000000000000000000002"), make_value_hex("0x02")});
+
+    GridMPT grid(store2, kEmptyRoot);
+    bytes32 calculated_root = grid.calc_root_from_updates(updates);
+
+    std::cout << "branch12: " << to_hex(branch12.bytes) << std::endl;
+    std::cout << "calculated: " << to_hex(calculated_root.bytes) << std::endl;
+
+    CHECK(ext0_63 == calculated_root);
+    CHECK(to_hex(calculated_root.bytes) == "38d7897fa8fb512c9c9a55175fc0745865ea934d6d0c22a100caa255c80eb383");  // from silkworm::trie::HashBuilder tests
+}
+
 }  // namespace silkworm::mpt
+
+// namespace silkworm::trie {
+
+// TEST_CASE("HashBuilder1") {
+//     const evmc::bytes32 key1{0x0000000000000000000000000000000000000000000000000000000000000001_bytes32};
+//     const evmc::bytes32 key2{0x0000000000000000000000000000000000000000000000000000000000000002_bytes32};
+
+//     const Bytes val1{*from_hex("01")};
+//     const Bytes val2{*from_hex("02")};
+
+//     HashBuilder hb;
+//     hb.add_leaf(unpack_nibbles(key1.bytes), val1);
+//     hb.add_leaf(unpack_nibbles(key2.bytes), val2);
+
+//     // even terminating
+//     const Bytes encoded_empty_terminating_path{*from_hex("20")};
+//     const Bytes leaf1_payload{encoded_empty_terminating_path + val1};
+//     const Bytes leaf2_payload{encoded_empty_terminating_path + val2};
+
+//     Bytes branch_payload;
+//     branch_payload.push_back(rlp::kEmptyStringCode);  // nibble 0
+//     rlp::encode_header(branch_payload, {.list = true, .payload_length = leaf1_payload.size()});
+//     branch_payload.append(leaf1_payload);
+
+//     rlp::encode_header(branch_payload, {.list = true, .payload_length = leaf2_payload.size()});
+//     branch_payload.append(leaf2_payload);
+
+//     std::cout<< "leaf1_payload: " << to_hex(leaf1_payload) << std::endl;
+//     std::cout<< "leaf2_payload: " << to_hex(leaf2_payload) << std::endl;
+
+//     // nibbles 3 to 15 plus nil value
+//     for (size_t i = {3}; i < 17; ++i) {
+//         branch_payload.push_back(rlp::kEmptyStringCode);
+//     }
+
+//     Bytes branch_rlp;
+//     const rlp::Header branch_head{/*list=*/true, branch_payload.size()};
+//     rlp::encode_header(branch_rlp, branch_head);
+//     branch_rlp.append(branch_payload);
+//     REQUIRE(branch_rlp.size() < kHashLength);
+
+//     std::cout<< "branch_rlp: " << to_hex(branch_rlp) << std::endl;
+
+//     // odd extension
+//     const Bytes encoded_path{*from_hex("1000000000000000000000000000000000000000000000000000000000000000")};
+
+//     Bytes extension_payload;
+//     rlp::encode(extension_payload, encoded_path);
+//     extension_payload.append(branch_rlp);
+
+//     Bytes extension_rlp;
+//     const rlp::Header extension_head{/*list=*/true, extension_payload.size()};
+//     rlp::encode_header(extension_rlp, extension_head);
+//     extension_rlp.append(extension_payload);
+//     REQUIRE(extension_rlp.size() >= kHashLength);
+
+//     std::cout<< "extension_rlp: " << to_hex(extension_rlp) << std::endl;
+
+//     const auto hash{std::bit_cast<evmc_bytes32> (keccak256(extension_rlp))};
+//     const auto root_hash{hb.root_hash()};
+//     std::cout<< "HashBuilder1 computed root " << to_hex(root_hash.bytes);
+//     CHECK(to_hex(root_hash.bytes) == to_hex(hash.bytes));
+
+//     // Reset hash builder
+//     hb.reset();
+//     REQUIRE(hb.root_hash() == kEmptyRoot);
+// }
+// }  // namespace silkworm::trie

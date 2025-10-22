@@ -43,26 +43,39 @@ inline void clear_static_buffer() {
 // RLP encoding using Silkworm's rlp namespace
 // ---------------------------------------------
 
+// See "Specification: Compact encoding of hex sequence with optional terminator"
+// at https://eth.wiki/fundamentals/patricia-tree
+inline Bytes encode_path(ByteView nibbles, bool terminating) {
+    Bytes res(nibbles.size() / 2 + 1, '\0');
+    const bool odd{static_cast<bool>((nibbles.size() & 1u) != 0)};
+
+    res[0] = terminating ? 0x20 : 0x00;
+    res[0] += odd ? 0x10 : 0x00;
+
+    if (odd) {
+        res[0] |= nibbles[0];
+        nibbles.remove_prefix(1);
+    }
+
+    for (auto it{std::next(res.begin(), 1)}, end{res.end()}; it != end; ++it) {
+        *it = static_cast<uint8_t>((nibbles[0] << 4) + nibbles[1]);
+        nibbles.remove_prefix(2);
+    }
+
+    return res;
+}
+
 inline Bytes encode_branch(const BranchNode& b) {
-    // Use the static_buffer from mpt.hpp (it already has thread_local handling)
     static_buffer.clear();
-
     rlp::Header h{.list = true, .payload_length = 0};
-
     // Calculate payload for 16 children
     for (size_t i = 0; i < 16; ++i) {
         h.payload_length += (b.child_len[i] == 0)
                                 ? size_t{1}  // RLP("") == 0x80
-                                : rlp::length(ByteView{b.child[i].bytes, b.child_len[i]});
+                                : b.child_len[i];
     }
 
-    // Add value field
     h.payload_length += rlp::length(b.value);
-
-    // // FIX: Reserve correctly with +1 for list header byte
-    // const size_t total_size = 1 + rlp::length_of_length(h.payload_length) + h.payload_length;
-    // static_buffer.reserve(total_size);
-
     rlp::encode_header(static_buffer, h);
 
     // Encode 16 children
@@ -70,34 +83,52 @@ inline Bytes encode_branch(const BranchNode& b) {
         if (b.child_len[i] == 0) {
             static_buffer.push_back(rlp::kEmptyStringCode);
         } else {
-            rlp::encode(static_buffer, ByteView{b.child[i].bytes, b.child_len[i]});
+            static_buffer.append(b.child[i].bytes, b.child_len[i]);
         }
     }
 
     rlp::encode(static_buffer, b.value);
-    std::cout<< "call to encode_branch " << static_buffer << std::endl;
+    std::cout << "call to encode_branch " << static_buffer << std::endl;
     return static_buffer;
 }
 
 inline Bytes encode_ext(const ExtensionNode& e) {
     static_buffer.clear();
+    ByteView path{e.path.nib.data(), e.path.len};
+    std::cout << "encode_ext path:  " << path << std::endl;
 
-    // Encode HP path
-    uint8_t hpbuf[1 + 32];  // Max 33 bytes for 64 nibbles
-    uint8_t* hp_end = encode_hp_path(hpbuf, e.path.nib.data(), e.path.len, /*leaf*/ false);
-    ByteView hp_encoded{hpbuf, static_cast<size_t>(hp_end - hpbuf)};
+    Bytes hp_encoded{encode_path(path, /*terminating=*/false)};
 
-    rlp::Header h{.list = true, .payload_length = 0};
-    h.payload_length += rlp::length(hp_encoded);
-    h.payload_length += rlp::length(ByteView{e.child.bytes, 32});
+    // Calculate payload length
+    size_t child_rlp_len;
+    if (e.child_len == 32) {
+        // Hash reference: needs RLP encoding (0xa0 + 32 bytes = 33 bytes)
+        child_rlp_len = 33;
+    } else {
+        // Embedded node or already RLP-encoded
+        child_rlp_len = e.child_len;
+    }
 
-    // // FIX: Reserve correctly with +1 for list header byte
-    // const size_t total_size = 1 + rlp::length_of_length(h.payload_length) + h.payload_length;
-    // static_buffer.reserve(total_size);
+    rlp::Header h{
+        .list = true,
+        .payload_length = rlp::length(hp_encoded) + child_rlp_len};
+
+    std::cout << "h payload len " << h.payload_length << std::endl;
 
     rlp::encode_header(static_buffer, h);
     rlp::encode(static_buffer, hp_encoded);
-    rlp::encode(static_buffer, ByteView{e.child.bytes, 32});
+
+    // Encode child
+    if (e.child_len == 32) {
+        // Hash reference: RLP-encode the 32-byte hash
+        ByteView child_hash{e.child.bytes, 32};
+        rlp::encode(static_buffer, child_hash);
+    } else {
+        // Embedded node: already RLP-encoded, append as-is
+        static_buffer.append(e.child.bytes, e.child_len);
+    }
+
+    std::cout << "call to encode_ext " << static_buffer << std::endl;
 
     return static_buffer;
 }
@@ -113,10 +144,6 @@ inline Bytes encode_leaf(const LeafNode& l) {
     rlp::Header h{.list = true, .payload_length = 0};
     h.payload_length += rlp::length(hp_encoded);
     h.payload_length += rlp::length(l.value);
-
-    // // FIX: Reserve correctly with +1 for list header byte
-    // const size_t total_size = 1 + rlp::length_of_length(h.payload_length) + h.payload_length;
-    // static_buffer.reserve(total_size);
 
     rlp::encode_header(static_buffer, h);
     rlp::encode(static_buffer, hp_encoded);
@@ -170,23 +197,26 @@ inline bool decode_branch(ByteView payload, BranchNode& out) {
 
     // Decode 16 children
     for (size_t i = 0; i < 16; ++i) {
+        // Save position before decode_header consumes the header
+        const uint8_t* child_start = remaining.data();
+
         auto hdr = rlp::decode_header(remaining);
         if (!hdr || hdr->list) return false;
 
-        ByteView elem_payload = remaining.substr(0, hdr->payload_length);
-        remaining.remove_prefix(hdr->payload_length);
-
-        if (elem_payload.empty()) {
+        if (hdr->payload_length == 0) {
+            // Empty child (RLP empty string 0x80)
             zero(out.child[i]);
             out.child_len[i] = 0;
         } else {
-            std::memcpy(out.child[i].bytes, elem_payload.data(), elem_payload.size());
-            out.child_len[i] = static_cast<uint8_t>(elem_payload.size());
-            if (elem_payload.size() > 0) {
-                out.mask |= (1 << i);
-                out.count++;
-            }
+            // Non-empty child: store the full RLP-encoded form (header + payload)
+            size_t header_len = static_cast<size_t>(remaining.data() - child_start);
+            size_t total_len = header_len + hdr->payload_length;
+            std::memcpy(out.child[i].bytes, child_start, total_len);
+            out.child_len[i] = static_cast<uint8_t>(total_len);
+            out.mask |= (1 << i);
+            out.count++;
         }
+        remaining.remove_prefix(hdr->payload_length);
     }
 
     // Decode value (17th element)
@@ -210,26 +240,37 @@ inline bool decode_ext_or_leaf(ByteView payload, bool& is_leaf,
     ByteView hp_path = remaining.substr(0, h1->payload_length);
     remaining.remove_prefix(h1->payload_length);
 
-    // Second element - child hash (for extension) or value (for leaf)
-    auto h2 = rlp::decode_header(remaining);
-    if (!h2 || h2->list) return false;
-    second = remaining.substr(0, h2->payload_length);
-    remaining.remove_prefix(h2->payload_length);
-
-    // Should have consumed everything
-    if (!remaining.empty()) return false;
-
-    // Decode HP path
+    // Decode HP path first to determine if it's a leaf or extension
     if (!hp_decode(hp_path, is_leaf, path, plen)) {
         return false;
     }
 
-    // FIX: Validate extension child is exactly 32 bytes (hash-only)
-    if (!is_leaf && second.size() != 32) {
-        return false;
+    // Second element - child hash (for extension) or value (for leaf)
+    const uint8_t* second_start = remaining.data();
+    auto h2 = rlp::decode_header(remaining);
+    if (!h2 || h2->list) return false;
+
+    if (!is_leaf) {
+        // Extension: for hash references, return just the 32-byte hash (not RLP-encoded)
+        // For embedded nodes, return the full RLP
+        if (h2->payload_length == 32) {
+            // Hash reference: return just the payload (32 bytes)
+            second = remaining.substr(0, 32);
+        } else {
+            // Embedded node: return full RLP-encoded form (header + payload)
+            size_t header_len = static_cast<size_t>(remaining.data() - second_start);
+            size_t total_len = header_len + h2->payload_length;
+            second = ByteView{second_start, total_len};
+        }
+    } else {
+        // Leaf: return just the value payload
+        second = remaining.substr(0, h2->payload_length);
     }
 
-    return true;
+    remaining.remove_prefix(h2->payload_length);
+
+    // Should have consumed everything
+    return remaining.empty();
 }
 
 }  // namespace silkworm::mpt

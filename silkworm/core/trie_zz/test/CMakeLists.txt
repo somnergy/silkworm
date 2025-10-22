@@ -13,12 +13,16 @@ file(GLOB TRIE_ZZ_TEST_SRC
 
 # Include grid_mpt.cpp implementation and other required source files
 # Also include RLP implementation, ethash keccak, and common utility files needed for encoding
+# Include hash_builder and nibbles for HashBuilder test
 set(TRIE_ZZ_IMPL_SRC
     ${CMAKE_CURRENT_SOURCE_DIR}/../grid_mpt.cpp
     ${SILKWORM_MAIN_DIR}/silkworm/core/rlp/encode.cpp
     ${SILKWORM_MAIN_DIR}/silkworm/core/rlp/decode.cpp
     ${SILKWORM_MAIN_DIR}/silkworm/core/common/endian.cpp
     ${SILKWORM_MAIN_DIR}/silkworm/core/common/util.cpp
+    ${SILKWORM_MAIN_DIR}/silkworm/core/trie/hash_builder.cpp
+    ${SILKWORM_MAIN_DIR}/silkworm/core/trie/nibbles.cpp
+    ${SILKWORM_MAIN_DIR}/silkworm/core/trie/node.cpp
     ${SILKWORM_MAIN_DIR}/third_party/ethash/ethash/lib/keccak/keccak.c
 )
 
