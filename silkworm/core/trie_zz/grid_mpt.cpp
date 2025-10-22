@@ -293,6 +293,15 @@ inline void GridMPT::seek_with_last_insert(nibbles64& new_nibbles) {
 // Unfold from root as we traverse through the list of account updates
 // Finally return the root
 bytes32 GridMPT::calc_root_from_updates(const std::vector<TrieNodeFlat>& updates_sorted) {
+    // Reset state for fresh calculation
+    grid_.clear();
+    depth_ = 0;
+    search_nib_cursor_ = 0;
+    cur_unfold_depth_ = 0;
+    std::memset(unfolded_child_.data(), 0, sizeof(unfolded_child_));
+    search_nibbles_ = nibbles64{};
+    previous_nibbles_ = nibbles64{};
+
     if (prev_root_ != kEmptyRoot) {
         // Load root on to first line
         auto rlp = node_store_.get_rlp(prev_root_);
@@ -302,13 +311,22 @@ bytes32 GridMPT::calc_root_from_updates(const std::vector<TrieNodeFlat>& updates
     for (const auto& trie_upd : updates_sorted) {
         const ByteView value_view{trie_upd.value_rlp};
         auto new_nibbles = nibbles64::from_bytes32(trie_upd.key);
-        std::cout << "Loop " << to_hex(trie_upd.key.bytes) << "\n";
+        
         if (search_nibbles_.len > 0 && grid_.size() > 1) {
             // Previous leaf exists, and it's in a branch (can't be ext)
             seek_with_last_insert(new_nibbles);
         }
+        
+        // Handle empty grid case before accessing grid_[depth_]
+        if (grid_.empty()) {
+            search_nibbles_ = new_nibbles;
+            LeafNode l{search_nibbles_, 0, value_view};
+            insert_line(0, 0, l);
+            continue;
+        }
+        
         auto& grid_line = grid_[depth_];
-        search_nibbles_ = new_nibbles;  // TODO: Copy or Ref???
+        search_nibbles_ = new_nibbles;
         if (grid_line.consumed == 0) {  // Empty trie
             LeafNode l{search_nibbles_, 0, value_view};
             insert_line(0, 0, l);
@@ -338,12 +356,18 @@ bytes32 GridMPT::calc_root_from_updates(const std::vector<TrieNodeFlat>& updates
                     } else {
                         rlp = node_store_.get_rlp(grid_line.ext.child);
                     }
+                    
+                    // Debug
+                    std::cout << "  About to unfold from RLP with parent_slot=" << static_cast<int>(search_nibbles_[search_nib_cursor_]) 
+                              << " (search_nib_cursor_=" << static_cast<int>(search_nib_cursor_) << ")" << std::endl;
+                    
                     unfold_node_from_rlp(rlp, search_nibbles_[search_nib_cursor_], depth_);
                     continue;
                 } else {
                     // We will now insert branch at the divergence point
                     // Note: m is at the point of divergence
-                    BranchNode bn{};
+                    BranchNode bn{};  // Zero-initialize
+                    bn = BranchNode{};  // Ensure all fields are cleared
                     auto old_ext{grid_line.ext};
                     auto ext_path_len = old_ext.path.len;
 
@@ -404,7 +428,8 @@ bytes32 GridMPT::calc_root_from_updates(const std::vector<TrieNodeFlat>& updates
 
                 // Cache the value before splitting
                 LeafNode old_leaf{grid_[depth_].leaf};
-                BranchNode bn{};
+                BranchNode bn{};  // Zero-initialize
+                bn = BranchNode{};  // Ensure all fields are cleared
 
                 if (cp > 0) {  // Need to put an extension before the branch
                     ExtensionNode ext_common{};

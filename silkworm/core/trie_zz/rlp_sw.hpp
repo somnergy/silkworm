@@ -19,6 +19,25 @@
 #include "mpt.hpp"
 
 namespace silkworm::mpt {
+#if defined(__cpp_threadsafe_static_init) && !defined(NO_THREAD_LOCAL) && !defined(SP1) && !defined(QEMU_DEBUG)
+inline thread_local Bytes static_buffer = []() {
+    Bytes buf;
+    buf.reserve(1024);
+    return buf;
+}();
+#else
+inline static Bytes static_buffer = []() {
+    Bytes buf;
+    buf.reserve(1024);
+    return buf;
+}();
+#endif
+
+// Helper to clear static buffer between test runs
+inline void clear_static_buffer() {
+    static_buffer.clear();
+    static_buffer.reserve(1024);
+}
 
 // ---------------------------------------------
 // RLP encoding using Silkworm's rlp namespace

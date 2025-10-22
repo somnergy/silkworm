@@ -13,21 +13,6 @@
 namespace silkworm::mpt {
 using bytes32 = evmc::bytes32;
 
-// Reserved buffer for RLP encoding
-#if defined(__cpp_threadsafe_static_init) && !defined(NO_THREAD_LOCAL) && !defined(SP1) && !defined(QEMU_DEBUG)
-inline thread_local Bytes static_buffer = []() {
-    Bytes buf;
-    buf.reserve(1024);
-    return buf;
-}();
-#else
-inline static Bytes static_buffer = []() {
-    Bytes buf;
-    buf.reserve(1024);
-    return buf;
-}();
-#endif
-
 struct nibbles64 {
     uint8_t len{};                  // Upto what point it holds the path, could be a sub-path
     std::array<uint8_t, 64> nib{};  // each 0..15   // Maximum path a TrieNode can have is 64 nibbles
@@ -55,6 +40,15 @@ struct BranchNode {
     uint16_t mask{};
     uint8_t count{};   // number of non-empty children
     ByteView value{};  // RLP "value" payload view (empty if none)
+
+    // Explicit constructor to ensure zero-initialization
+    BranchNode() {
+        child = {};
+        child_len = {};
+        mask = 0;
+        count = 0;
+        value = ByteView{};
+    }
 
     inline void set_child(uint8_t slot, Bytes& b) {
         std::memcpy(child[slot].bytes, b.data(), b.size());

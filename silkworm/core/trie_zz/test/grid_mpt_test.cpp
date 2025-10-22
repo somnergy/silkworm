@@ -11,8 +11,6 @@
 #include <silkworm/core/trie_zz/mpt.hpp>
 #include <silkworm/core/trie_zz/rlp_sw.hpp>
 
-#include "../mpt.hpp"
-
 namespace silkworm::mpt {
 
 // =============================================================================
@@ -424,7 +422,10 @@ struct TrieBuilder {
 // ABCD -> [1, 2] -> l1, l2
 // AB -> [0,c] -> 0:l3, C:D; D-> [1,2]
 TEST_CASE("GridMPT: Insert into trie with extension") {
+    std::cout << "\n=== Starting extension test ===" << std::endl;
+    clear_static_buffer();  // Ensure clean RLP buffer state
     MockNodeStore store{};
+    store.clear();  // Ensure clean state
     TrieBuilder builder(store);
 
     // Build: Extension(ABCD) -> Branch -> 2 leaves
@@ -432,7 +433,7 @@ TEST_CASE("GridMPT: Insert into trie with extension") {
     bytes32 leaf2 = builder.make_leaf("22220000000000000000000000000000000000000000000000000000000", "value2");
 
     bytes32 branch12 = builder.make_branch({{0x01, leaf1},
-                                          {0x02, leaf2}});
+                                            {0x02, leaf2}});
     bytes32 ext_root = builder.make_extension("ABCD", branch12);
 
     std::vector<TrieNodeFlat> updates1;
@@ -442,31 +443,36 @@ TEST_CASE("GridMPT: Insert into trie with extension") {
     updates1.push_back({make_key("ABCD222220000000000000000000000000000000000000000000000000000000"),
                         make_value("value2")});
     bytes32 calculated_root = grid1.calc_root_from_updates(updates1);
-    SECTION("new root is is same as extension root, built from empty") {
-        CHECK(ext_root == calculated_root);
-    }
+    CHECK(ext_root == calculated_root);
 
     bytes32 leaf3 = builder.make_leaf("0000000000000000000000000000000000000000000000000000000000000", "value3");
 
     bytes32 D_ext = builder.make_extension("D", branch12);
-    bytes32 branch_0C = builder.make_branch({{0x00, leaf3},{0x0C, D_ext}});
+    bytes32 branch_0C = builder.make_branch({{0x00, leaf3}, {0x0C, D_ext}});
     bytes32 ext_root2 = builder.make_extension("AB", branch_0C);
 
     GridMPT grid(store, calculated_root);
     std::vector<TrieNodeFlat> updates2;
     updates2.push_back({make_key("AB00000000000000000000000000000000000000000000000000000000000000"),
-                       make_value("value3")});
+                        make_value("value3")});
+
+    CHECK(!is_zero_quick(branch_0C));
+    CHECK(!is_zero_quick(D_ext));
+    CHECK(!is_zero_quick(ext_root2));
 
     bytes32 new_root = grid.calc_root_from_updates(updates2);
-
-    SECTION("extension was created correctly") {
-        CHECK(ext_root2 == new_root);
-    }
+    CHECK(ext_root2 == new_root);
+    
+    // Clean up for next test
+    clear_static_buffer();
 }
 
 TEST_CASE("GridMPT: 4-level, multi-ext, multi-branch") {
-    MockNodeStore store{};
-    TrieBuilder builder(store);
+    std::cout << "\n=== Starting 4-level test ===" << std::endl;
+    clear_static_buffer();  // Ensure clean RLP buffer state
+    MockNodeStore store2{};
+    store2.clear();  // Ensure clean state
+    TrieBuilder builder(store2);
 
     auto branch56 = builder.make_branch({
         {0x05, builder.make_leaf_hex("", "0x22b224a1420a802ab51d326e29fa98e34c4f24ea")},
@@ -475,7 +481,7 @@ TEST_CASE("GridMPT: 4-level, multi-ext, multi-branch") {
     auto ext0_4 = builder.make_extension("00000004", branch56);
     auto branch01 = builder.make_branch({
         {0x00, ext0_4},
-        // {0x01, builder.make_leaf_hex("234567890", "")}
+                                         // {0x01, builder.make_leaf_hex("234567890", "")}
         {0x01, builder.make_leaf_hex("234567890", "0x")}});
     auto ext_00_29 = builder.make_extension("00000000000000000000000000000", branch01);
     auto branch067e = builder.make_branch({
@@ -518,22 +524,16 @@ TEST_CASE("GridMPT: 4-level, multi-ext, multi-branch") {
 
     updates.push_back({make_key("6f6f6f6820736f2067726561742c207265616c6c6c793f000000000000000000"), make_value_hex("0x697c7b8c961b56f675d570498424ac8de1a918f6")});
 
-    GridMPT grid(store, kEmptyRoot);
+    GridMPT grid(store2, kEmptyRoot);
     bytes32 calculated_root = grid.calc_root_from_updates(updates);
-    // bytes32 expected_root = make_key("72adb52e9d9428f808e3e8045be18d3baa77881d0cfab89a17a2bcbacee2f320");
-    // SECTION("check root against given root") {
-    //     CHECK(expected_root == calculated_root);
-    // }
-    std::cout<< "branch046: " <<to_hex(branch046.bytes) << std::endl;
-    SECTION("Check calculated root matches that of branch046") {
-        CHECK(branch046 == calculated_root);
-    }
 
-    SECTION("bla bla") {
-        CHECK(!is_zero_quick(calculated_root));
-        CHECK(!is_zero_quick(ext_00_29));
-        CHECK(!is_zero_quick(branch067e));
-    }
+    std::cout << "branch046: " << to_hex(branch046.bytes) << std::endl;
+    std::cout << "calculated: " << to_hex(calculated_root.bytes) << std::endl;
+
+    CHECK(branch046 == calculated_root);
+    CHECK(!is_zero_quick(calculated_root));
+    CHECK(!is_zero_quick(ext_00_29));
+    CHECK(!is_zero_quick(branch067e));
 }
 
 }  // namespace silkworm::mpt
