@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <map>
+#include <cstdio>
 
-#include <catch2/catch_test_macros.hpp>
+#include "simple_test.hpp"
 
 #include <silkworm/core/common/empty_hashes.hpp>
 #include <silkworm/core/common/util.hpp>
@@ -118,7 +119,6 @@ struct TrieBuilder {
     // Create a branch with specified children and return its hash
     bytes32 make_branch(const std::vector<std::pair<uint8_t, bytes32>>& children) {
         BranchNode branch{};
-        // std::memset(&branch, 0, sizeof(BranchNode));
 
         for (const auto& [idx, child_hash] : children) {
             auto rlp = store.get_rlp(child_hash);
@@ -467,7 +467,6 @@ TEST_CASE("GridMPT: Insert into trie with extension") {
     bytes32 new_root = grid.calc_root_from_updates(updates2);
     CHECK(ext_root2 == new_root);
 
-    // Clean up for next test
     clear_static_buffer();
 }
 
@@ -567,6 +566,12 @@ TEST_CASE("HB Test 1") {
 }
 
 }  // namespace silkworm::mpt
+
+// Main entry point
+int main() {
+    return simple_test::TestCase::run_all();
+}
+
 
 // namespace silkworm::trie {
 

@@ -1,7 +1,6 @@
 # Copyright 2025 The Silkworm Authors
 # SPDX-License-Identifier: Apache-2.0
 
-find_package(Catch2 REQUIRED)
 find_package(Microsoft.GSL REQUIRED)
 find_package(tl-expected REQUIRED)
 
@@ -20,9 +19,9 @@ set(TRIE_ZZ_IMPL_SRC
     ${SILKWORM_MAIN_DIR}/silkworm/core/rlp/decode.cpp
     ${SILKWORM_MAIN_DIR}/silkworm/core/common/endian.cpp
     ${SILKWORM_MAIN_DIR}/silkworm/core/common/util.cpp
-    ${SILKWORM_MAIN_DIR}/silkworm/core/trie/hash_builder.cpp
-    ${SILKWORM_MAIN_DIR}/silkworm/core/trie/nibbles.cpp
-    ${SILKWORM_MAIN_DIR}/silkworm/core/trie/node.cpp
+    # ${SILKWORM_MAIN_DIR}/silkworm/core/trie/hash_builder.cpp
+    # ${SILKWORM_MAIN_DIR}/silkworm/core/trie/nibbles.cpp
+    # ${SILKWORM_MAIN_DIR}/silkworm/core/trie/node.cpp
     ${SILKWORM_MAIN_DIR}/third_party/ethash/ethash/lib/keccak/keccak.c
 )
 
@@ -32,7 +31,6 @@ add_executable(trie_zz_test ${TRIE_ZZ_TEST_SRC} ${TRIE_ZZ_IMPL_SRC})
 # Link against required libraries
 target_link_libraries(trie_zz_test
     PRIVATE
-        Catch2::Catch2WithMain
         evmc
         Microsoft.GSL::GSL
         tl::expected
@@ -63,6 +61,5 @@ endif()
 # Register with CTest (if available)
 if(BUILD_TESTING)
     include(CTest)
-    include(Catch)
-    catch_discover_tests(trie_zz_test)
+    add_test(NAME trie_zz_test COMMAND trie_zz_test)
 endif()

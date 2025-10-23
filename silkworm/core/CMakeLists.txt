@@ -3,7 +3,7 @@
 
 include("${SILKWORM_MAIN_DIR}/cmake/common/targets.cmake")
 
-find_package(Catch2 REQUIRED)
+# find_package(Catch2 REQUIRED)
 find_package(magic_enum REQUIRED)
 find_package(Microsoft.GSL REQUIRED)
 find_package(nlohmann_json REQUIRED)
@@ -39,7 +39,7 @@ silkworm_library(
 add_subdirectory(trie_zz/test)
 
 # unit tests
-set(TEST_TARGET silkworm_core_test)
+# set(TEST_TARGET silkworm_core_test)
 
 # if(SILKWORM_WASM_API)
 #   # Stub clang exception handlers on WASM after Catch2 3.x due to https://github.com/WebAssembly/wasi-sdk/issues/329
