@@ -273,7 +273,7 @@ inline void GridMPT::seek_with_last_insert(nibbles64& new_nibbles) {
     auto& parent_depth = grid_[depth_].parent_depth;
     auto& parent_branch = grid_[parent_depth];
     while (new_nibbles[lcp] == search_nibbles_[lcp] && lcp < parent_branch.consumed) ++lcp;
-    int fold_for = parent_branch.consumed - lcp - 1;
+    int fold_for = static_cast<int>(parent_branch.consumed) - static_cast<int>(lcp) - 1;
 
     if (fold_for < 0) {
         search_nib_cursor_ = parent_branch.consumed;  // start from the existing leaf's path

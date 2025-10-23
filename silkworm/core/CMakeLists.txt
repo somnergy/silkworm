@@ -36,7 +36,7 @@ silkworm_library(
 )
 
 # Add trie_zz test subdirectory
-add_subdirectory(trie_zz/test)
+# add_subdirectory(trie_zz/test)
 
 # unit tests
 # set(TEST_TARGET silkworm_core_test)

@@ -79,13 +79,16 @@ inline Bytes encode_branch(const BranchNode& b) {
     rlp::encode_header(static_buffer, h);
 
     // Encode 16 children
+    //  std::cout<< "\n BR: Child At: ";
     for (size_t i = 0; i < 16; ++i) {
         if (b.child_len[i] == 0) {
             static_buffer.push_back(rlp::kEmptyStringCode);
         } else {
+            // std::cout<<i <<" ";
             static_buffer.append(b.child[i].bytes, b.child_len[i]);
         }
     }
+    // std::cout<< "\n";
 
     rlp::encode(static_buffer, b.value);
     std::cout << "call to encode_branch " << static_buffer << std::endl;
@@ -112,9 +115,6 @@ inline Bytes encode_ext(const ExtensionNode& e) {
     rlp::Header h{
         .list = true,
         .payload_length = rlp::length(hp_encoded) + child_rlp_len};
-
-    std::cout << "h payload len " << h.payload_length << std::endl;
-
     rlp::encode_header(static_buffer, h);
     rlp::encode(static_buffer, hp_encoded);
 
@@ -135,6 +135,9 @@ inline Bytes encode_ext(const ExtensionNode& e) {
 
 inline Bytes encode_leaf(const LeafNode& l) {
     static_buffer.clear();
+
+    // Bytes path{l.path.nib.data(), l.path.len};
+    // std::cout << "encode_leaf path:  " << l.path.nib << std::endl;
 
     // Encode HP path
     uint8_t hpbuf[1 + 32];
