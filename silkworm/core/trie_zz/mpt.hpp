@@ -9,7 +9,7 @@
 #include <evmc/evmc.hpp>
 
 #include <silkworm/core/common/bytes.hpp>
-
+#include "node_store_i.hpp"
 namespace silkworm::mpt {
 using bytes32 = evmc::bytes32;
 
@@ -104,18 +104,7 @@ struct GridLine {
     GridLine(uint8_t k, uint8_t pslot, uint8_t pdepth, uint8_t c) : kind{k}, parent_slot{pslot}, parent_depth{pdepth}, consumed{c} {}
 };
 
-// ---------------------------------------------
-// Store interface: get RLP by hash; sink new nodes
-// ---------------------------------------------
 
-class NodeStore {
-  public:
-    virtual ~NodeStore() = default;
-
-    // Must return the RLP bytes for `hash` (throw or return empty view if missing)
-    virtual ByteView get_rlp(const bytes32& hash) const = 0;
-    virtual void put_rlp(const bytes32& /*hash*/, const Bytes& /*rlp*/) {}
-};
 
 struct TrieNodeFlat {
     bytes32 key;

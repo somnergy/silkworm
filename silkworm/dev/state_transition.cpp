@@ -603,12 +603,13 @@ uint64_t StateTransition::run_rlp() {
     payload_view.remove_prefix(pre_rlp_head->payload_length);
 
     auto headers_overall_rlp_header = rlp::decode_header(payload_view);
+    ByteView headers_overall_view = payload_view.substr(0, headers_overall_rlp_header->payload_length);
     if (headers_overall_rlp_header) {  // Skip invalid headers list rlp
-        auto headers_list_header = rlp::decode_header(payload_view);
+        auto headers_list_header = rlp::decode_header(headers_overall_view);
         if (!headers_list_header || !headers_list_header->list) {
             sys_println("Invalid headers list entry");
         } else {
-            ByteView headers_list_view = payload_view.substr(0, headers_list_header->payload_length);
+            ByteView headers_list_view = headers_overall_view.substr(0, headers_list_header->payload_length);
             while (!headers_list_view.empty()) {
                 auto entry_header{rlp::decode_header(headers_list_view)};
                 ByteView hh_view = headers_list_view.substr(0, entry_header -> payload_length);
@@ -617,8 +618,22 @@ uint64_t StateTransition::run_rlp() {
                 state.insert_block(bb, bb.header.hash());
                 headers_list_view.remove_prefix(entry_header -> payload_length);
             }
+
         }
     }
+    payload_view.remove_prefix(headers_overall_rlp_header->payload_length);
+    
+    auto pre_trie_head = rlp::decode_header(payload_view);
+    if (!pre_trie_head) {
+        sys_println("ERROR: Failed to Decode Pre-Trie List RLP");
+        return 0;
+    }
+    ByteView pre_trie_payload = payload_view.substr(0, pre_trie_head->payload_length);
+    
+    // Create and populate the node store
+    node_store_.populate_from_rlp(pre_trie_payload);
+    sys_println(("Populated node store with " + std::to_string(node_store_.size()) + " nodes").c_str());
+    payload_view.remove_prefix(pre_trie_head->payload_length);
 
     auto config{test::kNetworkConfig.find("Prague")->second};
     Blockchain blockchain{state, config, genesisBlock};

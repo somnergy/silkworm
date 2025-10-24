@@ -11,6 +11,7 @@
 
 #include <silkworm/core/execution/execution.hpp>
 #include <silkworm/core/state/in_memory_state.hpp>
+#include <silkworm/core/trie_zz/flat_store.hpp>
 
 #include "expected_state.hpp"
 
@@ -27,6 +28,7 @@ class StateTransition {
     unsigned failed_count_{};
     bool terminate_on_error_{false};
     bool show_diagnostics_{false};
+    silkworm::mpt::FlatNodeStore node_store_;
 
     std::ostringstream out_stream_;
 
