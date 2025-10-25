@@ -15,6 +15,37 @@ using namespace silkworm::cmd::state_transition;
 int main(int argc, const char* argv[]) {
     try {
         if (argc < 3) {
+            std::cerr << "Usage: " << argv[0] << "<path_to_unified_rlp_bin>\n";
+            return 1;
+        }
+
+        const std::string file_path = argv[1];
+        std::ifstream file(file_path);   
+        if (!file.is_open()) {
+            throw std::runtime_error("Could not open file: " + file_path);
+        }
+        auto rlp_str =  std::string((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+
+        auto state_transition = silkworm::cmd::state_transition::StateTransition(rlp_str);
+        auto total_gas = state_transition.run_rlp();
+        std::cout << "Cumulative Gas Used: " << total_gas << "\n";
+    } catch (const std::exception& e) {
+        // code to handle exceptions of type std::exception and its derived classes
+        const auto desc = e.what();
+        std::cerr << "Exception: " << desc << std::endl;
+    } catch (...) {
+        // code to handle any other type of exception
+        std::cerr << "An unknown exception occurred" << std::endl;
+    }
+}
+
+
+
+/** JSON RUN
+ * 
+int main(int argc, const char* argv[]) {
+    try {
+        if (argc < 3) {
             std::cerr << "Usage: " << argv[0] << " <num_runs> <json_file_path>\n";
             return 1;
         }
@@ -43,3 +74,6 @@ int main(int argc, const char* argv[]) {
         std::cerr << "An unknown exception occurred" << std::endl;
     }
 }
+ * 
+ * 
+ */

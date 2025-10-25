@@ -16,6 +16,7 @@
 #include <silkworm/core/common/empty_hashes.hpp>
 #include <silkworm/core/common/util.hpp>
 #include <silkworm/core/rlp/encode.hpp>
+#include <silkworm/print.hpp>
 
 #include "helpers.hpp"
 #include "mpt.hpp"
@@ -112,21 +113,17 @@ inline uint8_t GridMPT::fold_back() {
         switch (parent.kind) {
             case kBranch:
                 parent.branch.set_child(grid_line.parent_slot, node_ref);
-                if (cur_unfold_depth_ == grid_line.parent_depth) {
-                    unfolded_child_[grid_line.parent_slot] = 0;
-                }
+                parent.child_depth[grid_line.parent_slot] = 0;
                 break;
             case kExt:
                 parent.ext.set_child(node_ref);
+                parent.child_depth[0] = 0;
                 break;
             default:
                 break;
         }
     }
     grid_.pop_back();
-    if (cur_unfold_depth_ == grid_.size()) {
-        reset_cur_unfolded();
-    }
     return consumed;
 }
 
@@ -155,49 +152,28 @@ inline LeafNode GridMPT::make_cur_leaf(ByteView value_rlp) {
     return l;
 }
 
-void GridMPT::reset_cur_unfolded() {
-    std::memset(unfolded_child_.data(), 0, sizeof(unfolded_child_));
-}
-
 template <typename NodeType>
 inline bool GridMPT::insert_line(uint8_t parent_slot, uint8_t parent_depth, NodeType& node) {
     if (parent_slot >= 16) return false;
 
-    if (cur_unfold_depth_ != parent_depth) {
-        std::memset(unfolded_child_.data(), 0, sizeof(unfolded_child_));
-        cur_unfold_depth_ = parent_depth;
-    }
-
-    Kind kind;
-    uint8_t consumed;
     if constexpr (std::is_same_v<NodeType, LeafNode>) {
-        kind = kLeaf;
-        consumed = 64;
+        grid_.emplace_back(kLeaf, parent_slot, parent_depth, 64);
+        std::memcpy(&grid_.back().leaf, &node, sizeof(LeafNode));
     } else if constexpr (std::is_same_v<NodeType, ExtensionNode>) {
-        kind = kExt;
-        consumed = node.path.len;
-    } else {
-        kind = kBranch;
-        consumed = 1;
+        grid_.emplace_back(kExt, parent_slot, parent_depth, node.path.len);
+        std::memcpy(&grid_.back().ext, &node, sizeof(ExtensionNode));
+    } else {  // BranchNode
+        grid_.emplace_back(kBranch, parent_slot, parent_depth, 1);
+        std::memcpy(&grid_.back().branch, &node, sizeof(BranchNode));
     }
-
-    grid_.emplace_back(kind, parent_slot, parent_depth, consumed);
     depth_ = grid_.size() - 1;
 
-    if constexpr (std::is_same_v<NodeType, LeafNode>) {
-        std::memcpy(&grid_[depth_].leaf, &node, sizeof(LeafNode));
-    } else if constexpr (std::is_same_v<NodeType, ExtensionNode>) {
-        std::memcpy(&grid_[depth_].ext, &node, sizeof(ExtensionNode));
-        if (depth_ != parent_depth) {
-            grid_[depth_].consumed += grid_[parent_depth].consumed;
-        }
-    } else {  // BranchNode
-        std::memcpy(&grid_[depth_].branch, &node, sizeof(BranchNode));
-        if (depth_ != parent_depth) {
-            grid_[depth_].consumed += grid_[parent_depth].consumed;
+    if constexpr (!std::is_same_v<NodeType, LeafNode>) {
+        if (depth_ > 0) {
+            grid_.back().consumed += grid_[parent_depth].consumed;
+            grid_[parent_depth].child_depth[parent_slot] = depth_;
         }
     }
-    unfolded_child_[parent_slot] = depth_;
     return true;
 }
 
@@ -213,6 +189,7 @@ inline bool GridMPT::cast_line(GridLine& line, NodeType& node) {
     } else {  // leaf
         parent_consumed = parent_consumed - line.leaf.path.len;
     }
+    line.child_depth.fill(0);
 
     Kind kind;
     uint8_t consumed;
@@ -238,24 +215,38 @@ inline bool GridMPT::cast_line(GridLine& line, NodeType& node) {
 
 // Unfolds branch slot at depth_, returns false on error
 inline bool GridMPT::unfold_branch(uint8_t slot) {
-    if (unfolded_child_[slot]) {  // If child here was unfolded previously
-        depth_ = unfolded_child_[slot];
+    if (depth_ >= grid_.size()) {
+        sys_println(("ERROR: depth_=" + std::to_string(depth_) + " >= grid_.size()=" + std::to_string(grid_.size())).c_str());
+        return false;
+    }
+    if (grid_[depth_].kind != kBranch) {
+        sys_println(("ERROR: Trying to unfold_branch but grid_[" + std::to_string(depth_) + "].kind=" + std::to_string(grid_[depth_].kind) + " (not kBranch)").c_str());
+        return false;
+    }
+
+    auto& grid_line = grid_[depth_];
+    if (auto s = grid_line.child_depth[slot]; s) {
+        if (s > grid_.size()) {
+            sys_println("ERROR: child_depth > size");
+        }
+        depth_ = s;
         return true;
     }
-    auto child_len = grid_[depth_].branch.child_len[slot];
+
+    auto child_len = grid_line.branch.child_len[slot];
     if (child_len == 0) {  // empty, nothing to "unfold"
         return false;
     }
-    auto child = grid_[depth_].branch.child[slot];
+    auto& child = grid_line.branch.child[slot];
     ByteView rlp;
-    if (child_len >= 32) {
+    if (child_len == 32) {
+        // Hash ref
         rlp = node_store_.get_rlp(child);
     } else {
         rlp = ByteView{child.bytes, child_len};
     }
-
     unfold_node_from_rlp(rlp, slot, depth_);
-    unfolded_child_[slot] = depth_;
+    grid_line.child_depth[slot] = depth_;
     return true;
 }
 
@@ -298,8 +289,6 @@ bytes32 GridMPT::calc_root_from_updates(const std::vector<TrieNodeFlat>& updates
     grid_.clear();
     depth_ = 0;
     search_nib_cursor_ = 0;
-    cur_unfold_depth_ = 0;
-    std::memset(unfolded_child_.data(), 0, sizeof(unfolded_child_));
     search_nibbles_ = nibbles64{};
     previous_nibbles_ = nibbles64{};
 
@@ -312,11 +301,7 @@ bytes32 GridMPT::calc_root_from_updates(const std::vector<TrieNodeFlat>& updates
     for (const auto& trie_upd : updates_sorted) {
         const ByteView value_view{trie_upd.value_rlp};
         auto new_nibbles = nibbles64::from_bytes32(trie_upd.key);
-
-        if (search_nibbles_.len > 0 && grid_.size() > 1) {
-            // Previous leaf exists, and it's in a branch (can't be ext)
-            seek_with_last_insert(new_nibbles);
-        }
+        search_nib_cursor_ = 0;
 
         // Handle empty grid case before accessing grid_[depth_]
         if (grid_.empty()) {
@@ -325,15 +310,14 @@ bytes32 GridMPT::calc_root_from_updates(const std::vector<TrieNodeFlat>& updates
             insert_line(0, 0, l);
             continue;
         }
-
-        auto& grid_line = grid_[depth_];
-        search_nibbles_ = new_nibbles;
-        if (grid_line.consumed == 0) {  // Empty trie
-            LeafNode l{search_nibbles_, 0, value_view};
-            insert_line(0, 0, l);
-            continue;  // to the next update
+        if (search_nibbles_.len > 0 && grid_.size() > 1) {
+            // Previous leaf exists, and it's in a branch (can't be ext)
+            seek_with_last_insert(new_nibbles);
         }
+        search_nibbles_ = new_nibbles;
+        // auto grid_counter = 1;
         while (depth_ < 64) {  // Searching down
+            auto& grid_line = grid_[depth_];
             if (grid_line.kind == kBranch) {
                 auto nib = search_nibbles_[search_nib_cursor_];
                 if (!unfold_branch(nib)) {
@@ -342,6 +326,7 @@ bytes32 GridMPT::calc_root_from_updates(const std::vector<TrieNodeFlat>& updates
                     insert_line(l.parent_slot, depth_, l);
                     break;
                 }
+                search_nib_cursor_++;
                 continue;
             } else if (grid_line.kind == kExt) {
                 // go down till the first divergence point
@@ -413,6 +398,7 @@ bytes32 GridMPT::calc_root_from_updates(const std::vector<TrieNodeFlat>& updates
                     }
                     auto l = make_cur_leaf(value_view);
                     insert_line(l.parent_slot, depth_, l);
+
                     break;  // insertion complete
                 }
             } else {
@@ -467,7 +453,7 @@ bytes32 GridMPT::calc_root_from_updates(const std::vector<TrieNodeFlat>& updates
                     fold_back();  // No need to keep the left nib
                 }
                 depth_ = grid_.size() - 1;  // set to inserted leaf
-                break;                      // insertion complete
+                break;  // insertion complete
             }
         }
     }

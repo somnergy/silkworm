@@ -201,7 +201,7 @@ inline bool decode_branch(ByteView payload, BranchNode& out) {
     // Decode 16 children
     for (size_t i = 0; i < 16; ++i) {
         // Save position before decode_header consumes the header
-        const uint8_t* child_start = remaining.data();
+        // const uint8_t* child_start = remaining.data();
 
         auto hdr = rlp::decode_header(remaining);
         if (!hdr || hdr->list) return false;
@@ -212,10 +212,12 @@ inline bool decode_branch(ByteView payload, BranchNode& out) {
             out.child_len[i] = 0;
         } else {
             // Non-empty child: store the full RLP-encoded form (header + payload)
-            size_t header_len = static_cast<size_t>(remaining.data() - child_start);
-            size_t total_len = header_len + hdr->payload_length;
-            std::memcpy(out.child[i].bytes, child_start, total_len);
-            out.child_len[i] = static_cast<uint8_t>(total_len);
+            // size_t header_len = static_cast<size_t>(remaining.data() - child_start);
+            // size_t total_len = header_len + hdr->payload_length;
+            // std::memcpy(out.child[i].bytes, child_start, total_len);
+            // out.child_len[i] = static_cast<uint8_t>(total_len);
+            out.child_len[i] = hdr->payload_length;
+            std::memcpy(out.child[i].bytes, remaining.data(), hdr->payload_length);
             out.mask |= (1 << i);
             out.count++;
         }

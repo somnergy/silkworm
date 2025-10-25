@@ -56,10 +56,6 @@ inline bool hp_decode(ByteView in, bool& is_leaf, std::array<uint8_t, 64>& out, 
 // --------------
 
 
-inline evmc::bytes32 keccak_bytes(const Bytes& x) {
-    return std::bit_cast<evmc_bytes32>(ethash_keccak256(reinterpret_cast<const uint8_t*>(x.data()), x.size()));
-}
-
 // Simple RLP reader utility - forward declaration
 struct RlpReader;
 

@@ -3,6 +3,7 @@
 
 #include "state_transition.hpp"
 
+#include <algorithm>
 #include <bit>
 #include <fstream>
 #include <iostream>
@@ -20,6 +21,7 @@
 #include <silkworm/core/protocol/rule_set.hpp>
 #include <silkworm/core/rlp/encode_vector.hpp>
 #include <silkworm/core/state/in_memory_state.hpp>
+#include <silkworm/core/trie_zz/mpt.hpp>
 #include <silkworm/core/types/address.hpp>
 #include <silkworm/core/types/evmc_bytes32.hpp>
 #include <silkworm/dev/common/ecc_key_pair.hpp>
@@ -612,39 +614,127 @@ uint64_t StateTransition::run_rlp() {
             ByteView headers_list_view = headers_overall_view.substr(0, headers_list_header->payload_length);
             while (!headers_list_view.empty()) {
                 auto entry_header{rlp::decode_header(headers_list_view)};
-                ByteView hh_view = headers_list_view.substr(0, entry_header -> payload_length);
+                ByteView hh_view = headers_list_view.substr(0, entry_header->payload_length);
                 Block bb;
                 rlp::decode(hh_view, bb.header);
                 state.insert_block(bb, bb.header.hash());
-                headers_list_view.remove_prefix(entry_header -> payload_length);
+                headers_list_view.remove_prefix(entry_header->payload_length);
             }
-
         }
     }
     payload_view.remove_prefix(headers_overall_rlp_header->payload_length);
-    
+
+    {
+        auto config{test::kNetworkConfig.find("Prague")->second};
+        Blockchain blockchain{state, config, genesisBlock};
+
+        if (ValidationResult err{blockchain.insert_block(block, false)}; err != ValidationResult::kOk) {
+            std::cout << "Validation error " << magic_enum::enum_name<ValidationResult>(err) << std::endl;
+            sys_println(out_stream_.str().c_str());
+            return 0;
+        }
+    }
+
     auto pre_trie_head = rlp::decode_header(payload_view);
     if (!pre_trie_head) {
         sys_println("ERROR: Failed to Decode Pre-Trie List RLP");
         return 0;
     }
     ByteView pre_trie_payload = payload_view.substr(0, pre_trie_head->payload_length);
-    
-    // Create and populate the node store
-    node_store_.populate_from_rlp(pre_trie_payload);
-    sys_println(("Populated node store with " + std::to_string(node_store_.size()) + " nodes").c_str());
     payload_view.remove_prefix(pre_trie_head->payload_length);
 
-    auto config{test::kNetworkConfig.find("Prague")->second};
-    Blockchain blockchain{state, config, genesisBlock};
-
-    if (ValidationResult err{blockchain.insert_block(block, false)}; err != ValidationResult::kOk) {
-        std::cout << "Validation error " << magic_enum::enum_name<ValidationResult>(err) << std::endl;
-        sys_println(out_stream_.str().c_str());
-        return 0;
+    if (!check_root(pre_trie_payload, state, block.header)) {
+        sys_println("ERROR: State Root Mismatch");
     }
 
     return block.header.gas_used;
+}
+
+bool StateTransition::check_root(ByteView pre_trie_payload, InMemoryState& state, BlockHeader& header) {
+    // Create and populate the node store
+    node_store_.populate_from_rlp(pre_trie_payload);
+    sys_println(("Populated node store with " + std::to_string(node_store_.size()) + " nodes").c_str());
+
+    auto& acc_changes = state.account_changes().at(header.number);
+    const InMemoryState::StorageChanges& storage_changes = state.storage_changes().at(header.number);
+    std::vector<mpt::TrieNodeFlat> acc_updates;
+    for (auto& [addr, acc_opt] : acc_changes) {
+        if (!acc_opt.has_value()) continue;
+        const Account& acc_const = acc_opt.value();
+        Account& acc = const_cast<Account&>(acc_const);
+
+        // WETH address: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2
+        constexpr evmc::address WETH_ADDRESS = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2_address;
+
+        auto addr_str = to_hex(addr.bytes);
+        sys_println(("Addr: " + addr_str).c_str());
+        // sys_println(to_hex(acc->storage_root_).c_str());
+        auto it = storage_changes.find(addr);
+        bytes32 storage_root{acc.storage_root_};
+        if (it != storage_changes.end()) {
+            sys_println("==storage===");
+            // sys_println(("Number of incarnations for this address: " + std::to_string(it->second.size())).c_str());
+            // sys_println("K-V's");
+            std::vector<mpt::TrieNodeFlat> storage_updates{};
+            for (auto& [inc, smap] : it->second) {
+                // Most likely just one incarnation here
+                // sys_println(("Incarnation: " + std::to_string(inc) + " with " + std::to_string(smap.size()) + " entries").c_str());
+                // size_t entry_num = 0;
+                for (auto& [key, val] : smap) {
+                    auto cur_val = state.read_storage(addr, inc, key);
+                    if (cur_val == val){
+                        continue;
+                    }
+                    auto hashed_key = keccak_bytes32(key);
+                    Bytes val_rlp;
+                    val_rlp.reserve(33);
+                    auto zerolessVal = zeroless_view(cur_val.bytes);
+                    rlp::encode(val_rlp, zerolessVal);
+
+                    storage_updates.emplace_back(mpt::TrieNodeFlat{hashed_key, val_rlp});
+
+                    if (addr == WETH_ADDRESS) {
+                        sys_println(to_hex(key).c_str());
+                        sys_println(to_hex(hashed_key).c_str());
+                        sys_println(to_hex(val_rlp).c_str());
+                    }
+                }
+            }
+            // sys_println(("  Total entries processed from map: " + std::to_string(it->second.begin()->second.size())).c_str());
+            // sys_println(("  Total in storage_updates vector: " + std::to_string(storage_updates.size())).c_str());
+            sys_println(("Old Storage Root " + to_hex(acc.storage_root_)).c_str());
+            if (mpt::is_zero_quick(acc.storage_root_)) {
+                storage_root = kEmptyRoot;
+            }
+            mpt::GridMPT storage_trie{node_store_, storage_root};
+            std::sort(storage_updates.begin(), storage_updates.end(),
+                      [](const mpt::TrieNodeFlat& a, const mpt::TrieNodeFlat& b) {
+                          return a.key < b.key;
+                      });
+            storage_root = storage_trie.calc_root_from_updates(storage_updates);
+            sys_println(("New Storage Root " + to_hex(storage_root.bytes)).c_str());
+            // sys_println("==========");
+        }
+        auto addr_hash = keccak_bytes(addr.bytes);
+        auto acc_rlp = acc.rlp(storage_root);
+        acc_updates.emplace_back(addr_hash, acc_rlp);
+        // sys_println("acc_updates inserted: ");
+        // sys_println(to_hex(addr_hash).c_str());
+        // sys_println(to_hex(acc_rlp).c_str());
+    }
+    std::sort(acc_updates.begin(), acc_updates.end(),
+              [](const mpt::TrieNodeFlat& a, const mpt::TrieNodeFlat& b) {
+                  return a.key < b.key;
+              });
+    auto& prev_root = state.read_header(header.number - 1, header.parent_hash)->state_root;
+    mpt::GridMPT acc_trie{
+        node_store_,
+        prev_root};
+    auto new_root = acc_trie.calc_root_from_updates(acc_updates);
+    sys_println(("Prev-root: " + to_hex(prev_root)).c_str());
+    sys_println(("New root: " + to_hex(new_root)).c_str());
+    sys_println(("Header root: " + to_hex(header.state_root)).c_str());
+    return (new_root == header.state_root);
 }
 
 uint64_t StateTransition::run(uint32_t num_runs, bool is_test) {

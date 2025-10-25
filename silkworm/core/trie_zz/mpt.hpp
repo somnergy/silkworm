@@ -9,9 +9,20 @@
 #include <evmc/evmc.hpp>
 
 #include <silkworm/core/common/bytes.hpp>
+
 #include "node_store_i.hpp"
-namespace silkworm::mpt {
+
+namespace silkworm {
 using bytes32 = evmc::bytes32;
+inline bytes32 keccak_bytes(const Bytes& x) {
+    return std::bit_cast<evmc_bytes32>(ethash_keccak256(x.data(), x.size()));
+}
+inline bytes32 keccak_bytes32(const bytes32& x) {
+    return std::bit_cast<bytes32>(ethash_keccak256_32(x.bytes));
+}
+}  // namespace silkworm
+
+namespace silkworm::mpt {
 
 struct nibbles64 {
     uint8_t len{};                  // Upto what point it holds the path, could be a sub-path
@@ -94,6 +105,8 @@ struct GridLine {
     uint8_t parent_slot;   // parent child index (0..15) or 16 = branch value
     uint8_t parent_depth;  // Depth in the stack the current line's parent is at
     uint8_t consumed;      // path nibbles consumed till this node (cumulative)
+    std::array<uint8_t, 16> child_depth{};
+
     union {
         BranchNode branch;
         ExtensionNode ext;
@@ -103,8 +116,6 @@ struct GridLine {
     GridLine() : kind(kBranch), parent_slot(0), parent_depth(0), consumed(0), branch{} {}
     GridLine(uint8_t k, uint8_t pslot, uint8_t pdepth, uint8_t c) : kind{k}, parent_slot{pslot}, parent_depth{pdepth}, consumed{c} {}
 };
-
-
 
 struct TrieNodeFlat {
     bytes32 key;
@@ -122,8 +133,6 @@ struct TrieNodeFlat {
 class GridMPT {
     uint8_t depth_{0};              // The current depth we are visiting
     uint8_t search_nib_cursor_{0};  // The position in the current search key
-    uint8_t cur_unfold_depth_{0};
-    std::array<uint8_t, 16> unfolded_child_{};  // Depths of children of current branch, if unfolded
     // Previous root of the trie
     bytes32 prev_root_;
     // A stack of grid-lines consisting of TrieNodes

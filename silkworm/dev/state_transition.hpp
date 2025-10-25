@@ -57,6 +57,7 @@ class StateTransition {
     void validate_transition(const Receipt& receipt, const ExpectedState& expected_state, const ExpectedSubState& expected_sub_state, const InMemoryState& state);
     uint64_t run(uint32_t num_runs, bool blockchain_test);
     uint64_t run_rlp();
+    bool check_root(ByteView pre_trie_payload, InMemoryState& state, BlockHeader& header);
 };
 
 }  // namespace silkworm::cmd::state_transition

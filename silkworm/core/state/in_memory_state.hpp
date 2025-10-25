@@ -71,6 +71,8 @@ class InMemoryState : public State {
     void unwind_state_changes(BlockNum block_num) override;
 
     const FlatHashMap<BlockNum, AccountChanges>& account_changes() const { return account_changes_; }
+    const FlatHashMap<BlockNum, StorageChanges>& storage_changes() const { return storage_changes_; }
+    
     const FlatHashMap<evmc::address, Account>& accounts() const { return accounts_; }
 
     size_t storage_size(const evmc::address& address, uint64_t incarnation) const;
