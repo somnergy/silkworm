@@ -15,7 +15,7 @@
 namespace silkworm {
 using bytes32 = evmc::bytes32;
 inline bytes32 keccak_bytes(const Bytes& x) {
-    return std::bit_cast<evmc_bytes32>(ethash_keccak256(x.data(), x.size()));
+    return std::bit_cast<bytes32>(ethash_keccak256(x.data(), x.size()));
 }
 inline bytes32 keccak_bytes32(const bytes32& x) {
     return std::bit_cast<bytes32>(ethash_keccak256_32(x.bytes));

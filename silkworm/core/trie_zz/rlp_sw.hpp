@@ -70,9 +70,15 @@ inline Bytes encode_branch(const BranchNode& b) {
     rlp::Header h{.list = true, .payload_length = 0};
     // Calculate payload for 16 children
     for (size_t i = 0; i < 16; ++i) {
-        h.payload_length += (b.child_len[i] == 0)
-                                ? size_t{1}  // RLP("") == 0x80
-                                : b.child_len[i];
+        auto child_len = b.child_len[i];
+
+        // No double encoding
+        h.payload_length += (child_len == 0 || child_len == 32)
+                                ? 1 + child_len
+                                : child_len;
+        
+        // Double encoding of embedded node
+        // h.payload_length += 1 + child_len;
     }
 
     h.payload_length += rlp::length(b.value);
@@ -81,11 +87,20 @@ inline Bytes encode_branch(const BranchNode& b) {
     // Encode 16 children
     //  std::cout<< "\n BR: Child At: ";
     for (size_t i = 0; i < 16; ++i) {
-        if (b.child_len[i] == 0) {
+        auto child_len = b.child_len[i];
+        if (child_len == 0) {
             static_buffer.push_back(rlp::kEmptyStringCode);
-        } else {
-            // std::cout<<i <<" ";
+        } else if (child_len == 32) {
+            // hashed ref
+            static_buffer.push_back({0xa0});
             static_buffer.append(b.child[i].bytes, b.child_len[i]);
+        }
+        else {
+            // No double encoding
+            static_buffer.append(b.child[i].bytes, b.child_len[i]);
+
+            // Double encoding of embedded node
+            // rlp::encode(static_buffer, ByteView{b.child[i].bytes, b.child_len[i]});
         }
     }
     // std::cout<< "\n";

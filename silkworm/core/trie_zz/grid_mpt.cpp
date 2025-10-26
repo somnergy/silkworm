@@ -113,7 +113,7 @@ inline uint8_t GridMPT::fold_back() {
         switch (parent.kind) {
             case kBranch:
                 parent.branch.set_child(grid_line.parent_slot, node_ref);
-                parent.child_depth[grid_line.parent_slot] = 0;
+                parent.child_depth[grid_line.parent_slot] = 0;  // clear
                 break;
             case kExt:
                 parent.ext.set_child(node_ref);
