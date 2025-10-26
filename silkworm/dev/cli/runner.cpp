@@ -14,8 +14,8 @@ using namespace silkworm::cmd::state_transition;
 
 int main(int argc, const char* argv[]) {
     try {
-        if (argc < 3) {
-            std::cerr << "Usage: " << argv[0] << "<path_to_unified_rlp_bin>\n";
+        if (argc < 2) {
+            std::cerr << "Usage: " << argv[0] << " <path_to_unified_rlp_bin>\n";
             return 1;
         }
 
