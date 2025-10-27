@@ -347,7 +347,7 @@ bytes32 GridMPT::calc_root_from_updates(const std::vector<TrieNodeFlat>& updates
                     std::cout << "  About to unfold from RLP with parent_slot=" << static_cast<int>(search_nibbles_[search_nib_cursor_])
                               << " (search_nib_cursor_=" << static_cast<int>(search_nib_cursor_) << ")" << std::endl;
 
-                    unfold_node_from_rlp(rlp, search_nibbles_[search_nib_cursor_], depth_);
+                    unfold_node_from_rlp(rlp, 0, depth_);
                     continue;
                 } else {
                     // We will now insert branch at the divergence point
