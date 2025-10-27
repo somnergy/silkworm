@@ -43,6 +43,16 @@ struct nibbles64 {
         }
         return out;
     }
+
+    // Append another nibbles64 object to this one
+    void append(const nibbles64& other) {
+        uint8_t copy_len = other.len;
+        if (len + copy_len > 64) {
+            copy_len = 64 - len;  // Don't overflow
+        }
+        std::memcpy(&nib[len], other.nib.data(), copy_len);
+        len += copy_len;
+    }
 };
 
 struct BranchNode {
@@ -62,8 +72,16 @@ struct BranchNode {
     }
 
     inline void set_child(uint8_t slot, Bytes& b) {
+        if (child_len[slot] == 0) {
+            ++count;
+        }
         std::memcpy(child[slot].bytes, b.data(), b.size());
         child_len[slot] = static_cast<uint8_t>(b.size());
+    }
+
+    inline void delete_child(uint8_t slot) {
+        child_len[slot] = 0;
+        count = count ? count - 1 : 0;
     }
 };
 
@@ -82,6 +100,7 @@ struct LeafNode {
     nibbles64 path;
     uint8_t parent_slot;
     ByteView value{};
+    bool marked_for_deletion{false};
 };
 
 inline bool is_zero_quick(const bytes32& h) {
@@ -90,6 +109,9 @@ inline bool is_zero_quick(const bytes32& h) {
             words[4] | words[5] | words[6] | words[7]) == 0;
 }
 inline bool is_zero_quick(const Bytes& b) {
+    return std::all_of(b.begin(), b.end(), [](uint8_t byte) { return byte == 0; });
+}
+inline bool is_zero_quick(const ByteView b) {
     return std::all_of(b.begin(), b.end(), [](uint8_t byte) { return byte == 0; });
 }
 inline void zero(bytes32& h) { std::memset(h.bytes, 0, 32); }
@@ -130,6 +152,7 @@ struct TrieNodeFlat {
 // If there are more keys to insert, find a common divergence point
 // and insert the new key there before folding further.
 // More unfolding and folding needed for this or more keys
+template <bool DeletionEnabled = false>
 class GridMPT {
     uint8_t depth_{0};              // The current depth we are visiting
     uint8_t search_nib_cursor_{0};  // The position in the current search key
@@ -138,7 +161,6 @@ class GridMPT {
     // A stack of grid-lines consisting of TrieNodes
     std::vector<GridLine> grid_;
     nibbles64 search_nibbles_;    // The current key being searched for/inserted
-    nibbles64 previous_nibbles_;  // The last searched key
 
     // Flags
     bool should_unfold_{false};
@@ -150,28 +172,34 @@ class GridMPT {
 
     // Helper methods
     bool unfold_node_from_rlp(ByteView rlp, uint8_t parent_slot_index, uint8_t parent_depth);
-    bool fold_nibbles(int nib_count);
+    bool fold_nibbles(int nib_count, uint8_t from_depth);
     uint8_t fold_back();
+    uint8_t fold_or_seek(uint8_t depth);
     bool fold_lines(uint8_t num_lines);
-    // bytes32 make_leaf_for_suffix(const uint8_t* suffix, uint8_t len, ByteView value);
     LeafNode make_cur_leaf(ByteView value_rlp);
-    void reset_cur_unfolded();
-    // bool split_leaf();
 
   public:
-    GridMPT(NodeStore& node_store, bytes32 previous_root_hash) : prev_root_{previous_root_hash},
-                                                                 grid_{},
-                                                                 node_store_{node_store} {
+    GridMPT(NodeStore& node_store, bytes32 previous_root_hash)
+        : prev_root_{previous_root_hash},
+          grid_{},
+          node_store_{node_store} {
         grid_.reserve(66);  // Reserve max depth to avoid reallocations
     }
+
     bool unfold_branch(uint8_t slot);
     void seek_with_last_insert(nibbles64& new_nibbles);
+
     // Main algorithm
     bytes32 calc_root_from_updates(const std::vector<TrieNodeFlat>& updates_sorted);
+
     template <typename NodeType>
     bool insert_line(uint8_t parent_slot, uint8_t parent_depth, NodeType& node);
+
     template <typename NodeType>
     bool cast_line(GridLine& line, NodeType& node);
+
+    // Compile-time check for deletion support
+    static constexpr bool supports_deletion() { return DeletionEnabled; }
 };
 
 }  // namespace silkworm::mpt

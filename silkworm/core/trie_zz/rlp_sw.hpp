@@ -66,19 +66,22 @@ inline Bytes encode_path(ByteView nibbles, bool terminating) {
 }
 
 inline Bytes encode_branch(const BranchNode& b) {
+    if (b.count == 0){
+        return Bytes{0x80};
+    }
     static_buffer.clear();
     rlp::Header h{.list = true, .payload_length = 0};
     // Calculate payload for 16 children
     for (size_t i = 0; i < 16; ++i) {
         auto child_len = b.child_len[i];
 
-        // No double encoding
-        h.payload_length += (child_len == 0 || child_len == 32)
-                                ? 1 + child_len
-                                : child_len;
+        // // No double encoding
+        // h.payload_length += (child_len == 0 || child_len == 32)
+        //                         ? 1 + child_len
+        //                         : child_len;
         
         // Double encoding of embedded node
-        // h.payload_length += 1 + child_len;
+        h.payload_length += 1 + child_len;
     }
 
     h.payload_length += rlp::length(b.value);
@@ -96,11 +99,11 @@ inline Bytes encode_branch(const BranchNode& b) {
             static_buffer.append(b.child[i].bytes, b.child_len[i]);
         }
         else {
-            // No double encoding
-            static_buffer.append(b.child[i].bytes, b.child_len[i]);
+            // // No double encoding
+            // static_buffer.append(b.child[i].bytes, b.child_len[i]);
 
             // Double encoding of embedded node
-            // rlp::encode(static_buffer, ByteView{b.child[i].bytes, b.child_len[i]});
+            rlp::encode(static_buffer, ByteView{b.child[i].bytes, b.child_len[i]});
         }
     }
     // std::cout<< "\n";
@@ -111,6 +114,9 @@ inline Bytes encode_branch(const BranchNode& b) {
 }
 
 inline Bytes encode_ext(const ExtensionNode& e) {
+    if (e.child_len == 0) {
+        return Bytes{0x80};
+    }
     static_buffer.clear();
     ByteView path{e.path.nib.data(), e.path.len};
     std::cout << "encode_ext path:  " << path << std::endl;
@@ -150,6 +156,9 @@ inline Bytes encode_ext(const ExtensionNode& e) {
 
 inline Bytes encode_leaf(const LeafNode& l) {
     static_buffer.clear();
+    if (l.marked_for_deletion){
+
+    }
 
     // Bytes path{l.path.nib.data(), l.path.len};
     // std::cout << "encode_leaf path:  " << l.path.nib << std::endl;
@@ -291,6 +300,23 @@ inline bool decode_ext_or_leaf(ByteView payload, bool& is_leaf,
 
     // Should have consumed everything
     return remaining.empty();
+}
+
+// Encode the given line's node
+inline Bytes encode_line(GridLine& line) {
+    Bytes encoded;
+    switch (line.kind) {
+        case kBranch:
+            encoded = encode_branch(line.branch);
+            break;
+        case kExt:
+            encoded = encode_ext(line.ext);
+            break;
+        case kLeaf:
+            encoded = encode_leaf(line.leaf);
+            break;
+    }
+    return encoded;
 }
 
 }  // namespace silkworm::mpt

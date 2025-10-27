@@ -663,8 +663,23 @@ bool StateTransition::check_root(ByteView pre_trie_payload, InMemoryState& state
         const Account& acc_const = acc_opt.value();
         Account& acc = const_cast<Account&>(acc_const);
 
-        // WETH address: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2
-        constexpr evmc::address WETH_ADDRESS = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2_address;
+        // SPIDERMAN - FAILING
+        // constexpr evmc::address DBG_ADDRESS = 0x03195520814713970eb6d25f55db1e696d295bde_address;
+        constexpr evmc::address DBG_ADDRESS = 0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48_address;
+        // constexpr evmc::address DBG_ADDRESS = 0xdac17f958d2ee523a2206206994597c13d831ec7_address;
+
+        // PASSING
+        // constexpr evmc::address DBG_ADDRESS = 0x8236a87084f8b84306f72007f36f2618a5634494_address;
+        // constexpr evmc::address DBG_ADDRESS = 0x000000000004444c5dc75cb358380d2e3de08a90_address;
+        // constexpr evmc::address DBG_ADDRESS = 0x000000000022d473030f116ddee9f6b43ac78ba3_address;   
+        // constexpr evmc::address DBG_ADDRESS = 0x1231deb6f5749ef6ce6943a275a1d3e7486f4eae_address;   
+        // constexpr evmc::address DBG_ADDRESS = 0xbbcb91440523216e2b87052a99f69c604a7b6e00_address;
+        // constexpr evmc::address DBG_ADDRESS = 0xfa1c09fc8b491b6a4d3ff53a10cad29381b3f949_address;
+
+        if (addr == DBG_ADDRESS) {
+            sys_println("====== FOUND ADDR =====");
+        }
+
 
         auto addr_str = to_hex(addr.bytes);
         sys_println(("Addr: " + addr_str).c_str());
@@ -693,7 +708,7 @@ bool StateTransition::check_root(ByteView pre_trie_payload, InMemoryState& state
 
                     storage_updates.emplace_back(mpt::TrieNodeFlat{hashed_key, val_rlp});
 
-                    if (addr == WETH_ADDRESS) {
+                    if (addr == DBG_ADDRESS) {
                         sys_println(to_hex(key).c_str());
                         sys_println(to_hex(hashed_key).c_str());
                         sys_println(to_hex(val_rlp).c_str());
@@ -706,7 +721,7 @@ bool StateTransition::check_root(ByteView pre_trie_payload, InMemoryState& state
             if (mpt::is_zero_quick(acc.storage_root_)) {
                 storage_root = kEmptyRoot;
             }
-            mpt::GridMPT storage_trie{node_store_, storage_root};
+            mpt::GridMPT<true> storage_trie{node_store_, storage_root};
             std::sort(storage_updates.begin(), storage_updates.end(),
                       [](const mpt::TrieNodeFlat& a, const mpt::TrieNodeFlat& b) {
                           return a.key < b.key;
@@ -727,7 +742,7 @@ bool StateTransition::check_root(ByteView pre_trie_payload, InMemoryState& state
                   return a.key < b.key;
               });
     auto& prev_root = state.read_header(header.number - 1, header.parent_hash)->state_root;
-    mpt::GridMPT acc_trie{
+    mpt::GridMPT<false> acc_trie{
         node_store_,
         prev_root};
     auto new_root = acc_trie.calc_root_from_updates(acc_updates);
