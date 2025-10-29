@@ -13,7 +13,7 @@
 #include <silkworm/core/trie/hash_builder.hpp>
 #include <silkworm/core/trie/nibbles.hpp>
 #include <silkworm/core/types/evmc_bytes32.hpp>
-
+#include <silkworm/print.hpp>
 namespace silkworm {
 
 std::optional<Account> InMemoryState::read_account(const evmc::address& address) const noexcept {
@@ -243,11 +243,14 @@ evmc::bytes32 InMemoryState::state_root_hash() const {
         return kEmptyRoot;
     }
 
+    sys_println(" Calculating state_root_hash ");
+
     std::map<evmc::bytes32, Bytes> account_rlp;
     for (const auto& [address, account] : accounts_) {
         ethash::hash256 hash{keccak256(address.bytes)};
         evmc::bytes32 storage_root{account_storage_root(address, account.incarnation)};
-        // std::cout << to_hex(address.bytes) << ":  " << to_hex(storage_root.bytes) << "\n";
+        sys_println(("addr: " + to_hex(address.bytes) + " hash: " + to_hex(hash.bytes)).c_str());
+        // std::cout << to_hex(address.bytes) << ":  " << " hash:" << << to_hex(storage_root.bytes) << "\n";
         // std::cout << account.to_string() << "\n\n--";
         account_rlp[to_bytes32(hash.bytes)] = account.rlp(storage_root);
     }

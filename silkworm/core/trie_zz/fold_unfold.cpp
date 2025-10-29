@@ -106,18 +106,15 @@ uint8_t GridMPT<DeletionEnabled>::fold_back() {
             uint8_t non_empty_nib = 0;
             while (grid_line.branch.child_len[non_empty_nib] == 0) non_empty_nib++;
             depth_ = grid_.size() - 1;
-            unfold_branch(non_empty_nib);
-            ExtensionNode ext {
-                nibbles64 {
-                    1, { non_empty_nib }
-                }
-            };
+            unfold_slot(non_empty_nib);
+            ExtensionNode ext{
+                nibbles64{
+                    1, {non_empty_nib}}};
             cast_line(grid_line, ext);
             grid_line.child_depth[0] = depth_;
             fold_back();
         }
     }
-    
 
     if (grid_.size() > 0) {
         GridLine& parent = grid_[grid_line.parent_depth];
@@ -153,7 +150,7 @@ uint8_t GridMPT<DeletionEnabled>::fold_back() {
     auto consumed = grid_line.consumed;
     if (grid_.size() > 0) {
         auto& parent = grid_[grid_line.parent_depth];
-        consumed = consumed - parent.consumed;
+        consumed = consumed - parent.consumed;      // Anywho, 1 for br, path.len for leaf & ext
         switch (parent.kind) {
             case kBranch:
                 parent.branch.set_child(grid_line.parent_slot, node_ref);
@@ -170,7 +167,6 @@ uint8_t GridMPT<DeletionEnabled>::fold_back() {
     grid_.pop_back();
     return consumed;
 }
-
 
 // Fold n lines from the bottom
 template <bool DeletionEnabled>
@@ -206,21 +202,25 @@ inline bool GridMPT<DeletionEnabled>::insert_line(uint8_t parent_slot, uint8_t p
 
     if constexpr (std::is_same_v<NodeType, LeafNode>) {
         grid_.emplace_back(kLeaf, parent_slot, parent_depth, 64);
-        std::memcpy(&grid_.back().leaf, &node, sizeof(LeafNode));
+        // std::memcpy(&grid_.back().leaf, &node, sizeof(LeafNode));
+        grid_.back().leaf = node;
+        // std::memcpy(&grid_.back().leaf, &node, sizeof(LeafNode));
     } else if constexpr (std::is_same_v<NodeType, ExtensionNode>) {
         grid_.emplace_back(kExt, parent_slot, parent_depth, node.path.len);
-        std::memcpy(&grid_.back().ext, &node, sizeof(ExtensionNode));
+        grid_.back().ext = node;
+        // std::memcpy(&grid_.back().ext, &node, sizeof(ExtensionNode));
     } else {  // BranchNode
         grid_.emplace_back(kBranch, parent_slot, parent_depth, 1);
-        std::memcpy(&grid_.back().branch, &node, sizeof(BranchNode));
+        grid_.back().branch = node;
+        // std::memcpy(&grid_.back().branch, &node, sizeof(BranchNode));
     }
     depth_ = grid_.size() - 1;
 
-    if constexpr (!std::is_same_v<NodeType, LeafNode>) {
-        if (depth_ > 0) {
+    if (depth_ > 0) {
+        if constexpr (!std::is_same_v<NodeType, LeafNode>) {
             grid_.back().consumed += grid_[parent_depth].consumed;
-            grid_[parent_depth].child_depth[parent_slot] = depth_;
         }
+        grid_[parent_depth].child_depth[parent_slot] = depth_;
     }
     return true;
 }
@@ -245,18 +245,21 @@ inline bool GridMPT<DeletionEnabled>::cast_line(GridLine& line, NodeType& node) 
     if constexpr (std::is_same_v<NodeType, LeafNode>) {
         kind = kLeaf;
         line.consumed = 64;
-        std::memcpy(std::addressof(line.leaf), &node, sizeof(node));
+        line.leaf = node;
+        // std::memcpy(std::addressof(line.leaf), &node, sizeof(node));
         return true;
     } else if constexpr (std::is_same_v<NodeType, ExtensionNode>) {
         kind = kExt;
         consumed = node.path.len;
-        std::memcpy(std::addressof(line.ext), &node, sizeof(node));
+        line.ext = node;
+        // std::memcpy(std::addressof(line.ext), &node, sizeof(node));
         line.consumed = consumed + parent_consumed;
         line.child_depth.fill(0);
     } else {
         kind = kBranch;
         consumed = 1;
-        std::memcpy(std::addressof(line.branch), &node, sizeof(node));
+        line.branch = node;
+        // std::memcpy(std::addressof(line.branch), &node, sizeof(node));
         line.consumed = consumed + parent_consumed;
     }
     line.kind = kind;
@@ -265,16 +268,16 @@ inline bool GridMPT<DeletionEnabled>::cast_line(GridLine& line, NodeType& node) 
 
 // Unfolds branch slot at depth_, returns false on error
 template <bool DeletionEnabled>
-inline bool GridMPT<DeletionEnabled>::unfold_branch(uint8_t slot) {
-    if (slot > 15){
-        sys_println("ERROR: [unfold_branch] slot > 15 ");
+inline bool GridMPT<DeletionEnabled>::unfold_slot(uint8_t slot) {
+    if (slot > 15) {
+        sys_println("ERROR: [unfold_slot] slot > 15 ");
     }
     if (depth_ >= grid_.size()) {
         sys_println(("ERROR: depth_=" + std::to_string(depth_) + " >= grid_.size()=" + std::to_string(grid_.size())).c_str());
         return false;
     }
     if (grid_[depth_].kind != kBranch) {
-        sys_println(("ERROR: Trying to unfold_branch but grid_[" + std::to_string(depth_) + "].kind=" + std::to_string(grid_[depth_].kind) + " (not kBranch)").c_str());
+        sys_println(("ERROR: Trying to unfold_slot but grid_[" + std::to_string(depth_) + "].kind=" + std::to_string(grid_[depth_].kind) + " (not kBranch)").c_str());
         return false;
     }
 
@@ -299,11 +302,19 @@ inline bool GridMPT<DeletionEnabled>::unfold_branch(uint8_t slot) {
     } else {
         rlp = ByteView{child.bytes, child_len};
     }
-    if (rlp.size() == 0){
-        sys_println("ERROR: [unfold_branch] RLP size 0");
+    if (rlp.size() == 0) {
+        sys_println(("ERROR: [unfold_slot] RLP size 0, slot: " + std::to_string(slot) +
+                     " child_len: " + std::to_string(child_len))
+                        .c_str());
+        sys_println(grid_line.branch.to_string().c_str());
+        sys_println(("parent_slot: " + std::to_string(grid_line.parent_slot) +
+                     " parent_depth: " + std::to_string(grid_line.parent_depth))
+                        .c_str());
+        sys_println(("requested RLP for hash: " + to_hex(child.bytes)).c_str());
+        sys_println(grid_to_string().c_str());
     }
     bool success = unfold_node_from_rlp(rlp, slot, depth_);
-    if (success) 
+    if (success)
         grid_line.child_depth[slot] = depth_;
     return success;
 }

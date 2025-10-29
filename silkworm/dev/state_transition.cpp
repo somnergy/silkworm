@@ -658,94 +658,118 @@ bool StateTransition::check_root(ByteView pre_trie_payload, InMemoryState& state
     auto& acc_changes = state.account_changes().at(header.number);
     const InMemoryState::StorageChanges& storage_changes = state.storage_changes().at(header.number);
     std::vector<mpt::TrieNodeFlat> acc_updates;
+    std::vector<evmc::address> dbg_all_acc_chgs;
+
     for (auto& [addr, acc_opt] : acc_changes) {
+        dbg_all_acc_chgs.push_back(addr);
         if (!acc_opt.has_value()) continue;
-        const Account& acc_const = acc_opt.value();
-        Account& acc = const_cast<Account&>(acc_const);
-
-        // SPIDERMAN - FAILING
-        // constexpr evmc::address DBG_ADDRESS = 0x03195520814713970eb6d25f55db1e696d295bde_address;
-        constexpr evmc::address DBG_ADDRESS = 0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48_address;
-        // constexpr evmc::address DBG_ADDRESS = 0xdac17f958d2ee523a2206206994597c13d831ec7_address;
-
-        // PASSING
-        // constexpr evmc::address DBG_ADDRESS = 0x8236a87084f8b84306f72007f36f2618a5634494_address;
-        // constexpr evmc::address DBG_ADDRESS = 0x000000000004444c5dc75cb358380d2e3de08a90_address;
-        // constexpr evmc::address DBG_ADDRESS = 0x000000000022d473030f116ddee9f6b43ac78ba3_address;   
-        // constexpr evmc::address DBG_ADDRESS = 0x1231deb6f5749ef6ce6943a275a1d3e7486f4eae_address;   
-        // constexpr evmc::address DBG_ADDRESS = 0xbbcb91440523216e2b87052a99f69c604a7b6e00_address;
-        // constexpr evmc::address DBG_ADDRESS = 0xfa1c09fc8b491b6a4d3ff53a10cad29381b3f949_address;
-
-        if (addr == DBG_ADDRESS) {
-            sys_println("====== FOUND ADDR =====");
-        }
-
-
+        const Account& acc = acc_opt.value();
         auto addr_str = to_hex(addr.bytes);
-        sys_println(("Addr: " + addr_str).c_str());
+
+        // ===================DEBUG===========
+        sys_println(("\n ==========================\nAddr: " + addr_str).c_str());
+        constexpr evmc::address DBG_ADDRESS = 0x3ef238c36035880efbdfa239d218186b79ad1d6f_address;
+        // ===================DEBUG===========
         // sys_println(to_hex(acc->storage_root_).c_str());
         auto it = storage_changes.find(addr);
         bytes32 storage_root{acc.storage_root_};
         if (it != storage_changes.end()) {
-            sys_println("==storage===");
-            // sys_println(("Number of incarnations for this address: " + std::to_string(it->second.size())).c_str());
-            // sys_println("K-V's");
             std::vector<mpt::TrieNodeFlat> storage_updates{};
             for (auto& [inc, smap] : it->second) {
-                // Most likely just one incarnation here
-                // sys_println(("Incarnation: " + std::to_string(inc) + " with " + std::to_string(smap.size()) + " entries").c_str());
-                // size_t entry_num = 0;
                 for (auto& [key, val] : smap) {
                     auto cur_val = state.read_storage(addr, inc, key);
-                    if (cur_val == val){
+                    if (cur_val == val) {
                         continue;
                     }
                     auto hashed_key = keccak_bytes32(key);
+                    auto hashed_key_new = keccak_bytes(key.bytes);
+                    if (hashed_key != hashed_key_new){
+                        sys_println("FOK: ");
+                    }
                     Bytes val_rlp;
                     val_rlp.reserve(33);
                     auto zerolessVal = zeroless_view(cur_val.bytes);
                     rlp::encode(val_rlp, zerolessVal);
-
                     storage_updates.emplace_back(mpt::TrieNodeFlat{hashed_key, val_rlp});
 
+                    // ===================DEBUG===========
                     if (addr == DBG_ADDRESS) {
-                        sys_println(to_hex(key).c_str());
-                        sys_println(to_hex(hashed_key).c_str());
+                        sys_println("storage key =>");
+                        sys_println(("key: " + to_hex(key)).c_str());
+                        sys_println(("hashed_key: " + to_hex(hashed_key)).c_str());
                         sys_println(to_hex(val_rlp).c_str());
                     }
+                    // ===================DEBUG===========
                 }
             }
-            // sys_println(("  Total entries processed from map: " + std::to_string(it->second.begin()->second.size())).c_str());
-            // sys_println(("  Total in storage_updates vector: " + std::to_string(storage_updates.size())).c_str());
-            sys_println(("Old Storage Root " + to_hex(acc.storage_root_)).c_str());
-            if (mpt::is_zero_quick(acc.storage_root_)) {
-                storage_root = kEmptyRoot;
+
+            if (storage_updates.size() > 0) {
+                // ===================DEBUG===========
+                sys_println(("Old Storage Root " + to_hex(acc.storage_root_)).c_str());
+
+                if (mpt::is_zero_quick(acc.storage_root_)) {
+                    storage_root = kEmptyRoot;
+                }
+                mpt::GridMPT<true> storage_trie{node_store_, storage_root};
+                std::sort(storage_updates.begin(), storage_updates.end());
+                storage_root = storage_trie.calc_root_from_updates(storage_updates);
+
+                // ===================DEBUG===========
+                sys_println(("New Storage Root " + to_hex(storage_root.bytes)).c_str());
             }
-            mpt::GridMPT<true> storage_trie{node_store_, storage_root};
-            std::sort(storage_updates.begin(), storage_updates.end(),
-                      [](const mpt::TrieNodeFlat& a, const mpt::TrieNodeFlat& b) {
-                          return a.key < b.key;
-                      });
-            storage_root = storage_trie.calc_root_from_updates(storage_updates);
-            sys_println(("New Storage Root " + to_hex(storage_root.bytes)).c_str());
-            // sys_println("==========");
+        }
+        auto cur_acc_opt = state.read_account(addr);
+        if (!cur_acc_opt.has_value()) {
+            sys_println(("ERROR: Account in acc_changes but not in storage" + to_hex(addr.bytes)).c_str());
+            continue;
+        }
+        if (acc == *cur_acc_opt && storage_root == acc.storage_root_) {
+            continue;
         }
         auto addr_hash = keccak_bytes(addr.bytes);
-        auto acc_rlp = acc.rlp(storage_root);
+        auto acc_rlp = cur_acc_opt->rlp(storage_root);
         acc_updates.emplace_back(addr_hash, acc_rlp);
-        // sys_println("acc_updates inserted: ");
-        // sys_println(to_hex(addr_hash).c_str());
-        // sys_println(to_hex(acc_rlp).c_str());
+
+        // ===================DEBUG===========
+        sys_println(("addr_hash: " + to_hex(addr_hash)).c_str());
+        sys_println(("Old acc: " + acc.to_string()).c_str());
+        sys_println(("New acc: " + cur_acc_opt->to_string()).c_str());
+        // ==============================
     }
-    std::sort(acc_updates.begin(), acc_updates.end(),
-              [](const mpt::TrieNodeFlat& a, const mpt::TrieNodeFlat& b) {
-                  return a.key < b.key;
-              });
+
+    // //STORAGE changes other than that
+    // sys_println("All storage changes addresses: ");
+    // std::vector<evmc::address> stg_ch_addrs;
+    // for ( auto& [addr, _]: storage_changes){
+    //     stg_ch_addrs.push_back(addr);
+    // }
+    // std::sort(stg_ch_addrs.begin(), stg_ch_addrs.end());
+    // std::sort(all_acc_chgs.begin(), dbg_all_acc_chgs.end());
+    // for ( auto addr: stg_ch_addrs){
+    //     sys_println(to_hex(addr.bytes).c_str());
+    // }
+    // sys_println("================================");
+
+    // sys_println("All ACCOUNT changes addresses: ");
+    // for ( auto addr: all_acc_chgs){
+    //     sys_println(to_hex(addr.bytes).c_str());
+    // }
+
+    // ===================DEBUG===========
+    sys_println("================================");
+    sys_println("Done with Storage tries");
+
+    std::sort(acc_updates.begin(), acc_updates.end());
     auto& prev_root = state.read_header(header.number - 1, header.parent_hash)->state_root;
     mpt::GridMPT<false> acc_trie{
         node_store_,
-        prev_root};
+        prev_root
+    };
+    // ==================================
+
+
     auto new_root = acc_trie.calc_root_from_updates(acc_updates);
+    sys_println(acc_trie.grid_to_string().c_str());
     sys_println(("Prev-root: " + to_hex(prev_root)).c_str());
     sys_println(("New root: " + to_hex(new_root)).c_str());
     sys_println(("Header root: " + to_hex(header.state_root)).c_str());

@@ -9,13 +9,14 @@
 #include <evmc/evmc.hpp>
 
 #include <silkworm/core/common/bytes.hpp>
+#include <silkworm/core/types/evmc_bytes32.hpp>
 
 #include "node_store_i.hpp"
 
 namespace silkworm {
 using bytes32 = evmc::bytes32;
-inline bytes32 keccak_bytes(const Bytes& x) {
-    return std::bit_cast<bytes32>(ethash_keccak256(x.data(), x.size()));
+inline bytes32 keccak_bytes(const ByteView x) {
+     return std::bit_cast<bytes32>(ethash_keccak256(x.data(), x.size()).bytes);
 }
 inline bytes32 keccak_bytes32(const bytes32& x) {
     return std::bit_cast<bytes32>(ethash_keccak256_32(x.bytes));
@@ -53,6 +54,17 @@ struct nibbles64 {
         std::memcpy(&nib[len], other.nib.data(), copy_len);
         len += copy_len;
     }
+
+    // Debug: Print nibbles as hex (lower 4 bits only)
+    std::string to_string() const {
+        std::string result = "[len=" + std::to_string(static_cast<int>(len)) + "]: ";
+        for (uint8_t i = 0; i < len; i++) {
+            uint8_t nibble = nib[i] & 0x0F;
+            char hex = nibble < 10 ? ('0' + nibble) : ('a' + nibble - 10);
+            result += hex;
+        }
+        return result;
+    }
 };
 
 struct BranchNode {
@@ -71,7 +83,7 @@ struct BranchNode {
         value = ByteView{};
     }
 
-    inline void set_child(uint8_t slot, Bytes& b) {
+    inline void set_child(uint8_t slot, ByteView b) {
         if (child_len[slot] == 0) {
             ++count;
         }
@@ -83,6 +95,17 @@ struct BranchNode {
         child_len[slot] = 0;
         count = count ? count - 1 : 0;
     }
+
+    std::string to_string() const {
+        std::string result = "BranchNode children:\n";
+        for (uint8_t i = 0; i < 16; i++) {
+            if (child_len[i] > 0) {
+                result += "  [" + std::to_string(i) + "] len=" + std::to_string(child_len[i]) +
+                          " hash=" + to_hex(child[i].bytes) + "\n";
+            }
+        }
+        return result;
+    }
 };
 
 struct ExtensionNode {
@@ -90,9 +113,17 @@ struct ExtensionNode {
     bytes32 child{};
     uint8_t child_len;
 
-    inline void set_child(Bytes& b) {
+    inline void set_child(ByteView b) {
         std::memcpy(child.bytes, b.data(), b.size());
         child_len = static_cast<uint8_t>(b.size());
+    }
+
+    std::string to_string() const {
+        std::string result = "ExtensionNode:\n";
+        result += "  " + path.to_string() + "\n";
+        result += "  child_len=" + std::to_string(child_len) +
+                  " child_hash=" + to_hex(child.bytes) + "\n";
+        return result;
     }
 };
 
@@ -101,6 +132,16 @@ struct LeafNode {
     uint8_t parent_slot;
     ByteView value{};
     bool marked_for_deletion{false};
+
+    std::string to_string() const {
+        std::string result = "LeafNode:\n";
+        result += "  parent_slot=" + std::to_string(parent_slot) + "\n";
+        result += "  " + path.to_string() + "\n";
+        result += "  value_len=" + std::to_string(value.size());
+        if (marked_for_deletion) result += " [MARKED FOR DELETION]";
+        result += "\n";
+        return result;
+    }
 };
 
 inline bool is_zero_quick(const bytes32& h) {
@@ -137,11 +178,48 @@ struct GridLine {
 
     GridLine() : kind(kBranch), parent_slot(0), parent_depth(0), consumed(0), branch{} {}
     GridLine(uint8_t k, uint8_t pslot, uint8_t pdepth, uint8_t c) : kind{k}, parent_slot{pslot}, parent_depth{pdepth}, consumed{c} {}
+
+    std::string to_string() const {
+        std::string kind_str = (kind == kBranch) ? "Branch" : (kind == kExt) ? "Extension"
+                                                                             : "Leaf";
+        std::string result = "GridLine [" + kind_str + "]:\n";
+        result += "  parent_slot=" + std::to_string(parent_slot) +
+                  " parent_depth=" + std::to_string(parent_depth) +
+                  " consumed=" + std::to_string(consumed) + "\n";
+
+        // Show non-zero child depths
+        bool has_children = false;
+        for (uint8_t i = 0; i < 16; i++) {
+            if (child_depth[i] != 0) {
+                if (!has_children) {
+                    result += "  child_depths: ";
+                    has_children = true;
+                }
+                result += "[" + std::to_string(i) + "]=" + std::to_string(child_depth[i]) + " ";
+            }
+        }
+        if (has_children) result += "\n";
+
+        // Add node-specific details
+        if (kind == kBranch) {
+            result += "  " + branch.to_string();
+        } else if (kind == kExt) {
+            result += "  " + ext.to_string();
+        } else {
+            result += "  " + leaf.to_string();
+        }
+        return result;
+    }
 };
 
 struct TrieNodeFlat {
     bytes32 key;
     Bytes value_rlp;
+
+    // Lexicographic comparison for sorting
+    bool operator<(const TrieNodeFlat& other) const {
+        return key < other.key;
+    }
 };
 
 // A class holding the data for the Trie root calculation
@@ -160,7 +238,7 @@ class GridMPT {
     bytes32 prev_root_;
     // A stack of grid-lines consisting of TrieNodes
     std::vector<GridLine> grid_;
-    nibbles64 search_nibbles_;    // The current key being searched for/inserted
+    nibbles64 search_nibbles_;  // The current key being searched for/inserted
 
     // Flags
     bool should_unfold_{false};
@@ -186,7 +264,7 @@ class GridMPT {
         grid_.reserve(66);  // Reserve max depth to avoid reallocations
     }
 
-    bool unfold_branch(uint8_t slot);
+    bool unfold_slot(uint8_t slot);
     void seek_with_last_insert(nibbles64& new_nibbles);
 
     // Main algorithm
@@ -200,6 +278,26 @@ class GridMPT {
 
     // Compile-time check for deletion support
     static constexpr bool supports_deletion() { return DeletionEnabled; }
+
+    // Debug: print entire grid state
+    std::string grid_to_string() const {
+        std::string result = "=== GridMPT State ===\n";
+        result += "depth=" + std::to_string(depth_) +
+                  " search_nib_cursor=" + std::to_string(search_nib_cursor_) +
+                  " grid_size=" + std::to_string(grid_.size()) + "\n";
+        result += "prev_root=" + to_hex(prev_root_.bytes) + "\n";
+        result += "search_nibbles_=" + search_nibbles_.to_string() + "\n";
+
+        result += "\n--- Grid Lines ---\n";
+        for (size_t i = 0; i < grid_.size(); i++) {
+            result += "Line[" + std::to_string(i) + "]";
+            if (i == depth_) result += " <-- current depth";
+            result += ":\n" + grid_[i].to_string();
+            result += "\n";
+        }
+        result += "==================\n";
+        return result;
+    }
 };
 
 }  // namespace silkworm::mpt

@@ -44,6 +44,7 @@ inline void GridMPT<DeletionEnabled>::seek_with_last_insert(nibbles64& new_nibbl
     //    to visit this branch again
     //
     //================================================
+    if (grid_.size() == 1) return;
     size_t lcp = 0;
     auto& parent_depth = grid_[depth_].parent_depth;
     auto& parent_branch = grid_[parent_depth];
@@ -72,7 +73,7 @@ inline void GridMPT<DeletionEnabled>::seek_with_last_insert(nibbles64& new_nibbl
             fold_back();
         }
         depth_ = parent_depth;
-        while (fold_for > 0 && grid_.size() > 1) {
+        while (fold_for > 0 && grid_.size() > 1) {  // Note: The underflow is fine
             fold_for -= fold_back();
             depth_--;
         }
@@ -101,10 +102,20 @@ bytes32 GridMPT<DeletionEnabled>::calc_root_from_updates(const std::vector<TrieN
         // Load root on to first line
         auto rlp = node_store_.get_rlp(prev_root_);
         unfold_node_from_rlp(rlp, 0, 0);
+        sys_println(grid_to_string().c_str());
     }
 
     for (const auto& trie_upd : updates_sorted) {
         const ByteView value_view{trie_upd.value_rlp};
+
+        // ==============DEBUG===========
+        sys_println(("\n Key: " + to_hex(trie_upd.key.bytes)).c_str());
+        constexpr auto debg_key = 0x621227ab7bde110bc99a6316229734601b6958b69fb0526138932793b3d99fca_bytes32;
+        if (trie_upd.key == debg_key) {
+            sys_println("Found update key");
+        }
+        // =========================
+
         auto new_nibbles = nibbles64::from_bytes32(trie_upd.key);
         search_nib_cursor_ = 0;
 
@@ -115,7 +126,7 @@ bytes32 GridMPT<DeletionEnabled>::calc_root_from_updates(const std::vector<TrieN
             insert_line(0, 0, l);
             continue;
         }
-        if (search_nibbles_.len > 0 && grid_.size() > 1) {
+        if (search_nibbles_.len > 0) {
             // Previous leaf exists, and it's in a branch (can't be ext)
             seek_with_last_insert(new_nibbles);
         }
@@ -125,8 +136,8 @@ bytes32 GridMPT<DeletionEnabled>::calc_root_from_updates(const std::vector<TrieN
             auto& grid_line = grid_[depth_];
             if (grid_line.kind == kBranch) {
                 auto nib = search_nibbles_[search_nib_cursor_];
-                if (!unfold_branch(nib)) {
-                    // Child is empty
+                if (!unfold_slot(nib)) {
+                    // Child is empty - insert here
                     auto l = make_cur_leaf(value_view);
                     insert_line(l.parent_slot, depth_, l);
                     break;
@@ -197,8 +208,7 @@ bytes32 GridMPT<DeletionEnabled>::calc_root_from_updates(const std::vector<TrieN
                         // }
                     } else {
                         // The extension is absorbed or not needed, so put the child directly into the newly created bn
-                        grid_[depth_].branch.child[old_ext.path[m]] = old_ext.child;
-                        grid_[depth_].branch.child_len[old_ext.path[m]] = old_ext.child_len;
+                        grid_[depth_].branch.set_child(old_ext.path[m], ByteView{old_ext.child.bytes, old_ext.child_len});
                     }
                     auto l = make_cur_leaf(value_view);
                     insert_line(l.parent_slot, depth_, l);
