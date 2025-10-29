@@ -68,25 +68,10 @@ bool GridMPT<DeletionEnabled>::unfold_node_from_rlp(ByteView rlp, uint8_t parent
     return true;
 }
 
-// // Folds nibbles starting from current depth_ point
-// template <bool DeletionEnabled>
-// inline bool GridMPT<DeletionEnabled>::fold_nibbles(int nib_count, uint8_t from_depth) {
-//     // Fold till depth_ first
-//     while (from_depth < grid_.size() - 1) {
-//         fold_or_seek(from_depth);
-//     }
-//     while (nib_count > 0 && grid_.size() > 1) {
-//         nib_count -= fold_back();
-//         depth_--;
-//     }
-//     return true;
-// }
-
 // Fold the last line from the bottom and returns the number of nibbles consumed
 template <bool DeletionEnabled>
-uint8_t GridMPT<DeletionEnabled>::fold_back() {
+void GridMPT<DeletionEnabled>::fold_back() {
     auto& grid_line = grid_.back();
-    auto consumed = grid_line.consumed;
 
     if constexpr (DeletionEnabled) {
         // Would be called from sync_with_last_insert -> when it has common with the last deleted leaf
@@ -97,7 +82,7 @@ uint8_t GridMPT<DeletionEnabled>::fold_back() {
                     parent.branch.delete_child(grid_line.parent_slot);
                     parent.child_depth[grid_line.parent_slot] = 0;  // clear
                     grid_.pop_back();
-                    return 0;
+                    return;
                 }
             }
         }
@@ -126,24 +111,23 @@ uint8_t GridMPT<DeletionEnabled>::fold_back() {
             parent.ext.child_len = grid_line.ext.child_len;
             parent.child_depth[0] = 0;
             grid_.pop_back();
-            return grid_line.ext.path.len;
+            return;
         }
 
         // ext -> leaf = leaf
         if (grid_line.kind == kLeaf && parent.kind == kExt) {
-            auto parent_consumed = parent.consumed;
             auto parent_depth = grid_line.parent_depth;
             nibbles64 new_path{parent.ext.path};
             new_path.append(grid_line.leaf.path);
             grid_line.parent_depth = parent.parent_depth;
             grid_line.parent_slot = parent.parent_slot;
             grid_line.leaf.path = new_path;
-            grid_line.consumed = parent_consumed;       // Useful for deleted leafs on the way up
+            grid_line.consumed = 0;       // Useful for deleted leafs on the way up
             // Copy the back element to parent position
             grid_[parent_depth] = grid_line;
             // Remove the back
             grid_.pop_back();   // remove the line whee the leaf used to be
-            return consumed - parent_consumed;
+            return;
         }
     }
     }
@@ -154,7 +138,6 @@ uint8_t GridMPT<DeletionEnabled>::fold_back() {
     }
     if (grid_.size() > 0) {
         auto& parent = grid_[grid_line.parent_depth];
-        consumed = consumed - parent.consumed;      // 1 for br, path.len for leaf & ext
         switch (parent.kind) {
             case kBranch:
                 parent.branch.set_child(grid_line.parent_slot, node_ref);
@@ -169,21 +152,6 @@ uint8_t GridMPT<DeletionEnabled>::fold_back() {
         }
     }
     grid_.pop_back();
-    return consumed;
-}
-
-// Fold n lines from the bottom
-template <bool DeletionEnabled>
-inline bool GridMPT<DeletionEnabled>::fold_lines(uint8_t num_lines) {
-    depth_ = grid_.size() - 1;
-    if (num_lines > depth_) {
-        return false;
-    }
-    while (num_lines) {
-        fold_back();
-        --num_lines;
-    }
-    return true;
 }
 
 // Make a leaf of path after cursor of current search key
@@ -205,7 +173,7 @@ inline bool GridMPT<DeletionEnabled>::insert_line(uint8_t parent_slot, uint8_t p
     if (parent_slot >= 16) return false;
 
     if constexpr (std::is_same_v<NodeType, LeafNode>) {
-        grid_.emplace_back(kLeaf, parent_slot, parent_depth, 64);
+        grid_.emplace_back(kLeaf, parent_slot, parent_depth, 0);
         grid_.back().leaf = node;
     } else if constexpr (std::is_same_v<NodeType, ExtensionNode>) {
         grid_.emplace_back(kExt, parent_slot, parent_depth, node.path.len);
@@ -244,9 +212,8 @@ inline bool GridMPT<DeletionEnabled>::cast_line(GridLine& line, NodeType& node) 
     uint8_t consumed;
     if constexpr (std::is_same_v<NodeType, LeafNode>) {
         kind = kLeaf;
-        line.consumed = 64;
+        line.consumed = 0;
         line.leaf = node;
-        // std::memcpy(std::addressof(line.leaf), &node, sizeof(node));
         return true;
     } else if constexpr (std::is_same_v<NodeType, ExtensionNode>) {
         kind = kExt;
@@ -264,6 +231,15 @@ inline bool GridMPT<DeletionEnabled>::cast_line(GridLine& line, NodeType& node) 
     }
     line.kind = kind;
     return true;
+}
+
+template <bool DeletionEnabled>
+uint8_t GridMPT<DeletionEnabled>::consumed_nibbles(GridLine& line) {
+    if (grid_.size() > 0) {
+        return line.consumed - grid_[line.parent_depth].consumed;
+    } else {
+        return line.consumed;
+    }
 }
 
 // Unfolds branch slot at depth_, returns false on error

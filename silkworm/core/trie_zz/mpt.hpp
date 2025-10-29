@@ -250,10 +250,7 @@ class GridMPT {
 
     // Helper methods
     bool unfold_node_from_rlp(ByteView rlp, uint8_t parent_slot_index, uint8_t parent_depth);
-    bool fold_nibbles(int nib_count, uint8_t from_depth);
-    uint8_t fold_back();
-    uint8_t fold_or_seek(uint8_t depth);
-    bool fold_lines(uint8_t num_lines);
+    void fold_back();
     LeafNode make_cur_leaf(ByteView value_rlp);
 
   public:
@@ -275,6 +272,8 @@ class GridMPT {
 
     template <typename NodeType>
     bool cast_line(GridLine& line, NodeType& node);
+
+    uint8_t consumed_nibbles(GridLine& line);
 
     // Compile-time check for deletion support
     static constexpr bool supports_deletion() { return DeletionEnabled; }

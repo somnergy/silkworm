@@ -46,7 +46,8 @@ inline void GridMPT<DeletionEnabled>::seek_with_last_insert(nibbles64& new_nibbl
     //================================================
     if (grid_.size() == 1) return;
     size_t lcp = 0;
-    auto parent_depth = grid_[depth_].parent_depth;
+    auto& last_insert = grid_.back();
+    auto parent_depth = last_insert.parent_depth;
     auto& parent_branch = grid_[parent_depth];
     if (parent_branch.kind != kBranch) {
         sys_println("ERROR: seek_with_last_insert parent not a branch");
@@ -59,7 +60,7 @@ inline void GridMPT<DeletionEnabled>::seek_with_last_insert(nibbles64& new_nibbl
     if (fold_for < 0) {                               // 1.
         search_nib_cursor_ = parent_branch.consumed;  // start from the existing leaf's path
         if constexpr (DeletionEnabled) {
-            if (grid_[depth_].leaf.marked_for_deletion) {
+            if (last_insert.leaf.marked_for_deletion) {
                 search_nib_cursor_ = search_nib_cursor_ - 1;  // start from the parent branch
                 fold_back();
             }
@@ -68,21 +69,26 @@ inline void GridMPT<DeletionEnabled>::seek_with_last_insert(nibbles64& new_nibbl
     } else if (fold_for == 0) {  // 2.
         depth_ = parent_depth;   // Just seek to parent
     } else {                     // 3.
-        // fold_nibbles(fold_for, parent_depth);
-        while (grid_.size() - 1 > parent_depth) {  // Fold till parent branch first
+        // Fold till parent branch first
+        while (grid_.size() - 1 > parent_depth) {  
             fold_back();
         }
         auto d = parent_depth;
         auto next_parent = grid_.back().parent_depth;
-        while (fold_for > 0 && grid_.size() > 1) {  // Note: The underflow is fine
-            auto folded_nib_count = fold_back();
-            if (grid_.back().parent_depth < next_parent){
-                fold_for -= folded_nib_count;
-                next_parent = grid_.back().parent_depth;
+        while (grid_.size() > 1) {
+            auto folded_nib_count = consumed_nibbles(grid_.back());
+            fold_for -= folded_nib_count;
+            if (fold_for  <= 0) {
+                // This is the parent we want to be at - leave it's children unfolded
+                break;
             }
-            d--;
+            while (grid_.back().parent_depth == next_parent){
+                fold_back();
+                d--;
+            }
+            next_parent = grid_.back().parent_depth;
         }
-        depth_ = d;
+        depth_ = next_parent;
     }
     if (depth_ == 0) {
         search_nib_cursor_ = 0;
@@ -115,7 +121,7 @@ bytes32 GridMPT<DeletionEnabled>::calc_root_from_updates(const std::vector<TrieN
         const ByteView value_view{trie_upd.value_rlp};
 
         // ==============DEBUG===========
-        // sys_println(("\n Key: " + to_hex(trie_upd.key.bytes)).c_str());
+        sys_println(("\n Key: " + to_hex(trie_upd.key.bytes)).c_str());
         constexpr auto debg_key = 0xee00cc7452d23e630319bde5137842c5795c8410c018f8c05ff68cd2e963c749_bytes32;
         if (trie_upd.key == debg_key) {
             sys_println("Found update key");
@@ -232,7 +238,6 @@ bytes32 GridMPT<DeletionEnabled>::calc_root_from_updates(const std::vector<TrieN
                     if constexpr (DeletionEnabled) {
                         if (value_view == ByteView{{0x80}}) {
                             grid_line.leaf.marked_for_deletion = true;
-                            // fold_back(depth_);   // Leaf folding is taken care of by sync in the next iteration
                             break;
                         }
                     }
@@ -286,8 +291,8 @@ bytes32 GridMPT<DeletionEnabled>::calc_root_from_updates(const std::vector<TrieN
     }
 
     // Fold till root
-    if (!fold_lines(grid_.size() - 1)) {
-        return bytes32{};
+    while (grid_.size() > 1) {
+        fold_back();
     }
     auto encoded = encode_line(grid_[0]);
     // std::cout << "calc_root encoded branch: " << silkworm::to_hex(encoded) << std::endl;
