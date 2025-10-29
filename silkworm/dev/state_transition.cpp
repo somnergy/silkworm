@@ -668,7 +668,7 @@ bool StateTransition::check_root(ByteView pre_trie_payload, InMemoryState& state
 
         // ===================DEBUG===========
         sys_println(("\n ==========================\nAddr: " + addr_str).c_str());
-        constexpr evmc::address DBG_ADDRESS = 0x3ef238c36035880efbdfa239d218186b79ad1d6f_address;
+        constexpr evmc::address DBG_ADDRESS = 0x4acc0598be5dff69635cbbadbc2e30925caa8e9e_address;
         // ===================DEBUG===========
         // sys_println(to_hex(acc->storage_root_).c_str());
         auto it = storage_changes.find(addr);
@@ -723,17 +723,18 @@ bool StateTransition::check_root(ByteView pre_trie_payload, InMemoryState& state
             sys_println(("ERROR: Account in acc_changes but not in storage" + to_hex(addr.bytes)).c_str());
             continue;
         }
-        if (acc == *cur_acc_opt && storage_root == acc.storage_root_) {
-            continue;
-        }
+        auto& curr_acc = cur_acc_opt.value();
+        // if (acc == *cur_acc_opt && storage_root == acc.storage_root_) {
+        //     continue;
+        // }
         auto addr_hash = keccak_bytes(addr.bytes);
-        auto acc_rlp = cur_acc_opt->rlp(storage_root);
+        auto acc_rlp = curr_acc.rlp(storage_root);
         acc_updates.emplace_back(addr_hash, acc_rlp);
 
         // ===================DEBUG===========
         sys_println(("addr_hash: " + to_hex(addr_hash)).c_str());
         sys_println(("Old acc: " + acc.to_string()).c_str());
-        sys_println(("New acc: " + cur_acc_opt->to_string()).c_str());
+        sys_println(("New acc: " + curr_acc.to_string()).c_str());
         // ==============================
     }
 

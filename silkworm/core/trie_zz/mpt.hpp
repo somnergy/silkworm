@@ -149,9 +149,9 @@ inline bool is_zero_quick(const bytes32& h) {
     return (words[0] | words[1] | words[2] | words[3] |
             words[4] | words[5] | words[6] | words[7]) == 0;
 }
-inline bool is_zero_quick(const Bytes& b) {
-    return std::all_of(b.begin(), b.end(), [](uint8_t byte) { return byte == 0; });
-}
+// inline bool is_zero_quick(const Bytes& b) {
+//     return std::all_of(b.begin(), b.end(), [](uint8_t byte) { return byte == 0; });
+// }
 inline bool is_zero_quick(const ByteView b) {
     return std::all_of(b.begin(), b.end(), [](uint8_t byte) { return byte == 0; });
 }

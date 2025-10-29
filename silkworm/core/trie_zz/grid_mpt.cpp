@@ -46,7 +46,7 @@ inline void GridMPT<DeletionEnabled>::seek_with_last_insert(nibbles64& new_nibbl
     //================================================
     if (grid_.size() == 1) return;
     size_t lcp = 0;
-    auto& parent_depth = grid_[depth_].parent_depth;
+    auto parent_depth = grid_[depth_].parent_depth;
     auto& parent_branch = grid_[parent_depth];
     if (parent_branch.kind != kBranch) {
         sys_println("ERROR: seek_with_last_insert parent not a branch");
@@ -72,11 +72,17 @@ inline void GridMPT<DeletionEnabled>::seek_with_last_insert(nibbles64& new_nibbl
         while (grid_.size() - 1 > parent_depth) {  // Fold till parent branch first
             fold_back();
         }
-        depth_ = parent_depth;
+        auto d = parent_depth;
+        auto next_parent = grid_.back().parent_depth;
         while (fold_for > 0 && grid_.size() > 1) {  // Note: The underflow is fine
-            fold_for -= fold_back();
-            depth_--;
+            auto folded_nib_count = fold_back();
+            if (grid_.back().parent_depth < next_parent){
+                fold_for -= folded_nib_count;
+                next_parent = grid_.back().parent_depth;
+            }
+            d--;
         }
+        depth_ = d;
     }
     if (depth_ == 0) {
         search_nib_cursor_ = 0;
@@ -102,15 +108,15 @@ bytes32 GridMPT<DeletionEnabled>::calc_root_from_updates(const std::vector<TrieN
         // Load root on to first line
         auto rlp = node_store_.get_rlp(prev_root_);
         unfold_node_from_rlp(rlp, 0, 0);
-        sys_println(grid_to_string().c_str());
+        if constexpr (!DeletionEnabled)  sys_println(grid_to_string().c_str());
     }
 
     for (const auto& trie_upd : updates_sorted) {
         const ByteView value_view{trie_upd.value_rlp};
 
         // ==============DEBUG===========
-        sys_println(("\n Key: " + to_hex(trie_upd.key.bytes)).c_str());
-        constexpr auto debg_key = 0x621227ab7bde110bc99a6316229734601b6958b69fb0526138932793b3d99fca_bytes32;
+        // sys_println(("\n Key: " + to_hex(trie_upd.key.bytes)).c_str());
+        constexpr auto debg_key = 0xee00cc7452d23e630319bde5137842c5795c8410c018f8c05ff68cd2e963c749_bytes32;
         if (trie_upd.key == debg_key) {
             sys_println("Found update key");
         }
