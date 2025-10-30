@@ -662,13 +662,16 @@ bool StateTransition::check_root(ByteView pre_trie_payload, InMemoryState& state
 
     for (auto& [addr, acc_opt] : acc_changes) {
         dbg_all_acc_chgs.push_back(addr);
-        if (!acc_opt.has_value()) continue;
-        const Account& acc = acc_opt.value();
+        const Account& acc = acc_opt.has_value()? acc_opt.value(): Account{};
         auto addr_str = to_hex(addr.bytes);
 
         // ===================DEBUG===========
         sys_println(("\n ==========================\nAddr: " + addr_str).c_str());
-        constexpr evmc::address DBG_ADDRESS = 0x4acc0598be5dff69635cbbadbc2e30925caa8e9e_address;
+        constexpr evmc::address DBG_ADDRESS = 0x821Bdc25130C06A672e77aaA22c8D14549dfDB1e_address;
+        if (addr == DBG_ADDRESS) {
+            sys_println("AT DBG_ADDRESS");
+        }
+
         // ===================DEBUG===========
         // sys_println(to_hex(acc->storage_root_).c_str());
         auto it = storage_changes.find(addr);
@@ -762,14 +765,17 @@ bool StateTransition::check_root(ByteView pre_trie_payload, InMemoryState& state
 
     std::sort(acc_updates.begin(), acc_updates.end());
     auto& prev_root = state.read_header(header.number - 1, header.parent_hash)->state_root;
-    mpt::GridMPT<false> acc_trie{
+    mpt::GridMPT<true> acc_trie{
         node_store_,
         prev_root
     };
     // ==================================
 
-
+    auto before = acc_trie.grid_to_string();
     auto new_root = acc_trie.calc_root_from_updates(acc_updates);
+    sys_println("Acc trie Root node, BEFORE: ");
+    sys_println(before.c_str());
+    sys_println("Acc trie Root Node, AFTER: ");
     sys_println(acc_trie.grid_to_string().c_str());
     sys_println(("Prev-root: " + to_hex(prev_root)).c_str());
     sys_println(("New root: " + to_hex(new_root)).c_str());

@@ -20,7 +20,7 @@ struct Account {
     uint64_t nonce{0};
     intx::uint256 balance;
     evmc::bytes32 code_hash{kEmptyHash};
-    evmc::bytes32 storage_root_{kEmptyHash};
+    evmc::bytes32 storage_root_{kEmptyRoot};
     uint64_t incarnation{0};
     uint64_t previous_incarnation{0};
 

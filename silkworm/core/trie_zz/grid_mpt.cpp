@@ -68,7 +68,7 @@ inline void GridMPT<DeletionEnabled>::seek_with_last_insert(nibbles64& new_nibbl
         }
     } else if (cur_parent_depth > 0) {
         auto next_parent_depth = grid_[cur_parent_depth].parent_depth;
-        parent_consumed = grid_[next_parent_depth].consumed;
+        parent_consumed = grid_[next_parent_depth].consumed;    // For the next parent
         while (parent_consumed > lcp && cur_parent_depth > 0) {
             fold_children(cur_parent_depth);
             cur_parent_depth = next_parent_depth;
@@ -105,17 +105,19 @@ bytes32 GridMPT<DeletionEnabled>::calc_root_from_updates(const std::vector<TrieN
         // Load root on to first line
         auto rlp = node_store_.get_rlp(prev_root_);
         unfold_node_from_rlp(rlp, 0, 0);
-        if constexpr (!DeletionEnabled)  sys_println(grid_to_string().c_str());
+        // sys_println(grid_to_string().c_str());
     }
 
     for (const auto& trie_upd : updates_sorted) {
         const ByteView value_view{trie_upd.value_rlp};
 
         // ==============DEBUG===========
-        // sys_println(("\n Key: " + to_hex(trie_upd.key.bytes)).c_str());
-        constexpr auto debg_key = 0x37ccabb1827214676f0905c6cadb65d55cca29a582c6dce5d889d0102f07d35c_bytes32;
+        sys_println(("\n Key: " + to_hex(trie_upd.key.bytes)).c_str());
+        constexpr auto debg_key = 0x6a389f876f6d51e458c0ad85e4bf8b99377260c4a6fbe049fe2211bfc5af42c7_bytes32;
         if (trie_upd.key == debg_key) {
             sys_println("Found update key");
+            // sys_println(grid_[7].to_string().c_str());
+            // sys_println(grid_[grid_[0].child_depth[6]].to_string().c_str());
         }
         // =========================
 
