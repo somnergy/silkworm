@@ -122,7 +122,7 @@ void GridMPT<DeletionEnabled>::fold_back() {
             grid_line.parent_depth = parent.parent_depth;
             grid_line.parent_slot = parent.parent_slot;
             grid_line.leaf.path = new_path;
-            grid_line.consumed = 0;       // Useful for deleted leafs on the way up
+            // grid_line.consumed = 0;       // Useful for deleted leafs on the way up
             // Copy the back element to parent position
             grid_[parent_depth] = grid_line;
             // Remove the back
@@ -185,9 +185,7 @@ inline bool GridMPT<DeletionEnabled>::insert_line(uint8_t parent_slot, uint8_t p
     depth_ = grid_.size() - 1;
 
     if (depth_ > 0) {
-        if constexpr (!std::is_same_v<NodeType, LeafNode>) {
-            grid_.back().consumed += grid_[parent_depth].consumed;
-        }
+        grid_.back().consumed += grid_[parent_depth].consumed;
         grid_[parent_depth].child_depth[parent_slot] = depth_;
     }
     return true;
@@ -200,11 +198,23 @@ inline bool GridMPT<DeletionEnabled>::cast_line(GridLine& line, NodeType& node) 
     // extract parent_consumed info from existing line's consumed var
     auto parent_consumed = line.consumed;  // cumulative
     if (line.kind == kExt) {
+        if (line.ext.path.len > parent_consumed) {
+            sys_println(("ERROR: [fold_unfold.cpp:203] consumed underflow in cast_line! parent_consumed=" + 
+                        std::to_string(parent_consumed) + " line.ext.path.len=" + std::to_string(line.ext.path.len)).c_str());
+        }
         parent_consumed = parent_consumed - line.ext.path.len;
     } else if (line.kind == kBranch) {
+        if (parent_consumed < 1) {
+            sys_println(("ERROR: [fold_unfold.cpp:205] consumed underflow in cast_line! parent_consumed=" + 
+                        std::to_string(parent_consumed) + " (branch consumes 1)").c_str());
+        }
         parent_consumed = parent_consumed - 1;
     } else {  // leaf
-        parent_consumed = parent_consumed - line.leaf.path.len;
+        // if (line.leaf.path.len > parent_consumed) {
+        //     sys_println(("ERROR: [fold_unfold.cpp:207] consumed underflow in cast_line! parent_consumed=" + 
+        //                 std::to_string(parent_consumed) + " line.leaf.path.len=" + std::to_string(static_cast<int>(line.leaf.path.len))).c_str());
+        // }
+        // parent_consumed = parent_consumed - line.leaf.path.len;
     }
     line.child_depth.fill(0);
 
@@ -212,23 +222,29 @@ inline bool GridMPT<DeletionEnabled>::cast_line(GridLine& line, NodeType& node) 
     uint8_t consumed;
     if constexpr (std::is_same_v<NodeType, LeafNode>) {
         kind = kLeaf;
-        line.consumed = 0;
+        consumed = 0;
         line.leaf = node;
-        return true;
     } else if constexpr (std::is_same_v<NodeType, ExtensionNode>) {
         kind = kExt;
         consumed = node.path.len;
         line.ext = node;
         // std::memcpy(std::addressof(line.ext), &node, sizeof(node));
-        line.consumed = consumed + parent_consumed;
+        if (consumed + parent_consumed > 255) {
+            sys_println(("ERROR: [fold_unfold.cpp:223] consumed overflow in cast_line! consumed=" + 
+                        std::to_string(consumed) + " parent_consumed=" + std::to_string(parent_consumed)).c_str());
+        }
         line.child_depth.fill(0);
     } else {
         kind = kBranch;
         consumed = 1;
         line.branch = node;
         // std::memcpy(std::addressof(line.branch), &node, sizeof(node));
-        line.consumed = consumed + parent_consumed;
+        if (consumed + parent_consumed > 255) {
+            sys_println(("ERROR: [fold_unfold.cpp:230] consumed overflow in cast_line! consumed=" + 
+                        std::to_string(consumed) + " parent_consumed=" + std::to_string(parent_consumed)).c_str());
+        }
     }
+    line.consumed = consumed + parent_consumed;
     line.kind = kind;
     return true;
 }
@@ -236,7 +252,13 @@ inline bool GridMPT<DeletionEnabled>::cast_line(GridLine& line, NodeType& node) 
 template <bool DeletionEnabled>
 uint8_t GridMPT<DeletionEnabled>::consumed_nibbles(GridLine& line) {
     if (grid_.size() > 0) {
-        return line.consumed - grid_[line.parent_depth].consumed;
+        auto parent_consumed = grid_[line.parent_depth].consumed;
+        if (line.consumed < parent_consumed) {
+            sys_println(("ERROR: [fold_unfold.cpp:239] consumed underflow in consumed_nibbles! line.consumed=" + 
+                        std::to_string(line.consumed) + " parent_consumed=" + std::to_string(parent_consumed) + 
+                        " line.parent_depth=" + std::to_string(line.parent_depth)).c_str());
+        }
+        return line.consumed - parent_consumed;
     } else {
         return line.consumed;
     }

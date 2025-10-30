@@ -55,7 +55,7 @@ inline void GridMPT<DeletionEnabled>::seek_with_last_insert(nibbles64& new_nibbl
         return;
     }
     while (new_nibbles[lcp] == search_nibbles_[lcp] && lcp < parent_branch.consumed) ++lcp;
-    int fold_for = static_cast<int>(parent_branch.consumed) - static_cast<int>(lcp) - 1;
+    int fold_for = static_cast<int>(parent_branch.consumed) - static_cast<int>(lcp) - 1;        // under new scheme don't need parent consumed
 
     if (fold_for < 0) {                               // 1.
         search_nib_cursor_ = parent_branch.consumed;  // start from the existing leaf's path
@@ -122,7 +122,7 @@ bytes32 GridMPT<DeletionEnabled>::calc_root_from_updates(const std::vector<TrieN
 
         // ==============DEBUG===========
         sys_println(("\n Key: " + to_hex(trie_upd.key.bytes)).c_str());
-        constexpr auto debg_key = 0xee00cc7452d23e630319bde5137842c5795c8410c018f8c05ff68cd2e963c749_bytes32;
+        constexpr auto debg_key = 0x37ccabb1827214676f0905c6cadb65d55cca29a582c6dce5d889d0102f07d35c_bytes32;
         if (trie_upd.key == debg_key) {
             sys_println("Found update key");
         }
@@ -187,7 +187,14 @@ bytes32 GridMPT<DeletionEnabled>::calc_root_from_updates(const std::vector<TrieN
 
                     if (m > 0) {
                         // Shorten the grid_line current extension till the divergence point
-                        grid_line.consumed = grid_line.consumed - (ext_path_len - m);
+                        auto subtract_amount = ext_path_len - m;
+                        if (subtract_amount > grid_line.consumed) {
+                            sys_println(("ERROR: [grid_mpt.cpp:190] consumed underflow! grid_line.consumed=" + 
+                                        std::to_string(grid_line.consumed) + 
+                                        " subtract_amount=" + std::to_string(subtract_amount) + 
+                                        " (ext_path_len=" + std::to_string(ext_path_len) + ", m=" + std::to_string(m) + ")").c_str());
+                        }
+                        grid_line.consumed = grid_line.consumed - subtract_amount;
                         grid_line.ext.path.len = m;
                         grid_line.ext.child = bytes32{};  // Update later with the created branch
                         // insert branch after the shortened extension and mark its parent as it

@@ -157,7 +157,7 @@ inline Bytes encode_ext(const ExtensionNode& e) {
 inline Bytes encode_leaf(const LeafNode& l) {
     static_buffer.clear();
     if (l.marked_for_deletion){
-
+        sys_println("ERROR: call to encode_leaf on deleted leaf");
     }
 
     // Bytes path{l.path.nib.data(), l.path.len};
