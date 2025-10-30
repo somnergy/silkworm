@@ -37,67 +37,58 @@ inline void GridMPT<DeletionEnabled>::seek_with_last_insert(nibbles64& new_nibbl
     //================================================
     // The last leaf must have been inserted to a branch, or (to be) deleted from it
     // 3 cases:
-    // 1. If consumed - 1 < lcp, the new leaf shares path, have to split
-    // 2. if lcp == consumed - 1, fold the leaf, we are at common parent branch
-    // 3. if lcp < consumed - 1, fold the leaf line and more nibbles
-    //    we are higher and right of common branch and will not need
-    //    to visit this branch again
+    // 1. If parent_consumed - 1 < lcp, the new leaf shares path, have to split
+    // 2. if lcp == parent_consumed - 1, we are at common parent branch
+    // 3. if lcp < parent_consumed - 1, fold the children and possibly more
     //
+    // Tip: When we are searching for the next nibble, we don't need more than
+    // the first level of children from the common branch, ever again
     //================================================
     if (grid_.size() == 1) return;
     size_t lcp = 0;
     auto& last_insert = grid_.back();
-    auto parent_depth = last_insert.parent_depth;
-    auto& parent_branch = grid_[parent_depth];
-    if (parent_branch.kind != kBranch) {
+    auto cur_parent_depth = last_insert.parent_depth;
+    auto parent_consumed = grid_[cur_parent_depth].consumed;
+
+    if (grid_[last_insert.parent_depth].kind != kBranch) {
         sys_println("ERROR: seek_with_last_insert parent not a branch");
         depth_ = 0;
         return;
     }
-    while (new_nibbles[lcp] == search_nibbles_[lcp] && lcp < parent_branch.consumed) ++lcp;
-    int fold_for = static_cast<int>(parent_branch.consumed) - static_cast<int>(lcp) - 1;        // under new scheme don't need parent consumed
+    while (new_nibbles[lcp] == search_nibbles_[lcp] && lcp < parent_consumed) ++lcp;
 
-    if (fold_for < 0) {                               // 1.
-        search_nib_cursor_ = parent_branch.consumed;  // start from the existing leaf's path
+    if (lcp >= parent_consumed) {
         if constexpr (DeletionEnabled) {
             if (last_insert.leaf.marked_for_deletion) {
                 search_nib_cursor_ = search_nib_cursor_ - 1;  // start from the parent branch
+                depth_ = cur_parent_depth;
                 fold_back();
+                return;
             }
         }
-        return;
-    } else if (fold_for == 0) {  // 2.
-        depth_ = parent_depth;   // Just seek to parent
-    } else {                     // 3.
-        // Fold till parent branch first
-        while (grid_.size() - 1 > parent_depth) {  
-            fold_back();
+    } else if (cur_parent_depth > 0) {
+        auto next_parent_depth = grid_[cur_parent_depth].parent_depth;
+        parent_consumed = grid_[next_parent_depth].consumed;
+        while (parent_consumed > lcp && cur_parent_depth > 0) {
+            fold_children(cur_parent_depth);
+            cur_parent_depth = next_parent_depth;
+            next_parent_depth = grid_[cur_parent_depth].parent_depth;
+            parent_consumed = grid_[next_parent_depth].consumed;
         }
-        auto d = parent_depth;
-        auto next_parent = grid_.back().parent_depth;
-        while (grid_.size() > 1) {
-            auto folded_nib_count = consumed_nibbles(grid_.back());
-            fold_for -= folded_nib_count;
-            if (fold_for  <= 0) {
-                // This is the parent we want to be at - leave it's children unfolded
-                break;
-            }
-            while (grid_.back().parent_depth == next_parent){
-                fold_back();
-                d--;
-            }
-            next_parent = grid_.back().parent_depth;
-        }
-        depth_ = next_parent;
+        depth_ = cur_parent_depth;
+    } else {
+        depth_ = cur_parent_depth;
     }
+
     if (depth_ == 0) {
         search_nib_cursor_ = 0;
     } else {
-        search_nib_cursor_ = grid_[grid_[depth_].parent_depth].consumed;
+        search_nib_cursor_ = parent_consumed;
     }
     if (search_nib_cursor_ > 63) {
         sys_println("ERROR: search_nib_cursor_ > 63)");
     }
+   
 }
 
 // Unfold from root as we traverse through the list of account updates
@@ -121,7 +112,7 @@ bytes32 GridMPT<DeletionEnabled>::calc_root_from_updates(const std::vector<TrieN
         const ByteView value_view{trie_upd.value_rlp};
 
         // ==============DEBUG===========
-        sys_println(("\n Key: " + to_hex(trie_upd.key.bytes)).c_str());
+        // sys_println(("\n Key: " + to_hex(trie_upd.key.bytes)).c_str());
         constexpr auto debg_key = 0x37ccabb1827214676f0905c6cadb65d55cca29a582c6dce5d889d0102f07d35c_bytes32;
         if (trie_upd.key == debg_key) {
             sys_println("Found update key");

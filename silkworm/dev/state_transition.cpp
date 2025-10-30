@@ -668,7 +668,7 @@ bool StateTransition::check_root(ByteView pre_trie_payload, InMemoryState& state
 
         // ===================DEBUG===========
         sys_println(("\n ==========================\nAddr: " + addr_str).c_str());
-        constexpr evmc::address DBG_ADDRESS = 0xdac17f958d2ee523a2206206994597c13d831ec7_address;
+        constexpr evmc::address DBG_ADDRESS = 0x4acc0598be5dff69635cbbadbc2e30925caa8e9e_address;
         // ===================DEBUG===========
         // sys_println(to_hex(acc->storage_root_).c_str());
         auto it = storage_changes.find(addr);

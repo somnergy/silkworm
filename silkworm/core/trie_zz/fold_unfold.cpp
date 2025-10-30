@@ -317,4 +317,10 @@ inline bool GridMPT<DeletionEnabled>::unfold_slot(uint8_t slot) {
     return success;
 }
 
+// Fold children folds all the children of the line at given depth
+template <bool DeletionEnabled>
+inline void GridMPT<DeletionEnabled>::fold_children(uint8_t parent_depth) {
+    while(grid_.size() - 1 > parent_depth) fold_back();
+}
+
 }  // namespace silkworm::mpt

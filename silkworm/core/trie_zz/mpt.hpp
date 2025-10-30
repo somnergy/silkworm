@@ -262,6 +262,7 @@ class GridMPT {
     }
 
     bool unfold_slot(uint8_t slot);
+    void fold_children(uint8_t parent_depth);
     void seek_with_last_insert(nibbles64& new_nibbles);
 
     // Main algorithm
