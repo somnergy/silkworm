@@ -10,13 +10,14 @@
 
 #include <silkworm/core/common/bytes.hpp>
 #include <silkworm/core/types/evmc_bytes32.hpp>
+#include <silkworm/print.hpp>
 
 #include "node_store_i.hpp"
 
 namespace silkworm {
 using bytes32 = evmc::bytes32;
 inline bytes32 keccak_bytes(const ByteView x) {
-     return std::bit_cast<bytes32>(ethash_keccak256(x.data(), x.size()).bytes);
+    return std::bit_cast<bytes32>(ethash_keccak256(x.data(), x.size()).bytes);
 }
 inline bytes32 keccak_bytes32(const bytes32& x) {
     return std::bit_cast<bytes32>(ethash_keccak256_32(x.bytes));
@@ -74,6 +75,21 @@ struct BranchNode {
     uint8_t count{};   // number of non-empty children
     ByteView value{};  // RLP "value" payload view (empty if none)
 
+    // Quick bit operations on mask
+    inline uint8_t count_zero_bits() const {
+        return 16 - static_cast<uint8_t>(std::popcount(mask));
+    }
+
+    inline uint8_t single_bit_position() const {
+        // Returns position (0-15) if exactly one bit is set
+        // Undefined if mask has 0 or >1 bits set
+        return static_cast<uint8_t>(std::countr_zero(mask));
+    }
+
+    inline bool has_single_bit() const {
+        return mask != 0 && (mask & (mask - 1)) == 0;  // Check if power of 2
+    }
+
     // Explicit constructor to ensure zero-initialization
     BranchNode() {
         child = {};
@@ -83,9 +99,11 @@ struct BranchNode {
         value = ByteView{};
     }
 
+    // sets the branch's child at the slot with b.size() <= 32
     inline void set_child(uint8_t slot, ByteView b) {
         if (child_len[slot] == 0) {
             ++count;
+            mask |= 1 << slot;
         }
         std::memcpy(child[slot].bytes, b.data(), b.size());
         child_len[slot] = static_cast<uint8_t>(b.size());
@@ -94,6 +112,7 @@ struct BranchNode {
     inline void delete_child(uint8_t slot) {
         child_len[slot] = 0;
         count = count ? count - 1 : 0;
+        mask ^= (1 << slot);
     }
 
     std::string to_string() const {
@@ -259,6 +278,15 @@ class GridMPT {
           grid_{},
           node_store_{node_store} {
         grid_.reserve(66);  // Reserve max depth to avoid reallocations
+        if (previous_root_hash != kEmptyRoot) {
+            // Load root on to first line
+            auto rlp = node_store.get_rlp(previous_root_hash);
+            unfold_node_from_rlp(rlp, 0, 0);
+
+            // === DEBUG =====
+            // sys_println(grid_to_string().c_str());
+            ///
+        }
     }
 
     bool unfold_slot(uint8_t slot);
