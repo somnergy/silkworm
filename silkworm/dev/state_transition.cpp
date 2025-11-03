@@ -36,9 +36,11 @@ StateTransition::StateTransition(const std::string& json_str, const bool termina
       show_diagnostics_{show_diagnostics} {
     sys_println("StateTransition ctor with string");
 
+#ifdef SP1
     // Redirect std::cout and std::cerr to out_stream_ for capturing output.
     std::cout.rdbuf(out_stream_.rdbuf());
     std::cerr.rdbuf(out_stream_.rdbuf());
+#endif
 
     std::cout << "Test std::cout\n";
     sys_println("std::cout tested");
@@ -47,7 +49,10 @@ StateTransition::StateTransition(const std::string& json_str, const bool termina
 
     // Test the captured output dump.
     sys_println("OUT dump:");
+#ifdef SP1
     sys_println(out_stream_.str().c_str());
+#endif
+
     base_json_ = nlohmann::json::parse(json_str);
     auto test_object = base_json_.begin();
     test_name_ = test_object.key();
@@ -63,23 +68,38 @@ StateTransition::StateTransition(ByteView& unified_rlp) noexcept
     : unified_rlp_{unified_rlp} {
     sys_println("StateTransition::StateTransition");
 
-    // Redirect std::cout and std::cerr to out_stream_ for capturing output.
+// Redirect std::cout and std::cerr to out_stream_ for capturing output.
+#ifdef SP1
     std::cout.rdbuf(out_stream_.rdbuf());
     std::cerr.rdbuf(out_stream_.rdbuf());
+#endif
 }
 
 StateTransition::StateTransition(const std::string& unified_rlp_str) noexcept {
-    sys_println("StateTransition::StateTransition");
+    sys_println("StateTransition::StateTransition (copy)");
 
     // Redirect std::cout and std::cerr to out_stream_ for capturing output.
-    std::cout.rdbuf(out_stream_.rdbuf());
-    std::cerr.rdbuf(out_stream_.rdbuf());
+    // std::cout.rdbuf(out_stream_.rdbuf());
+    // std::cerr.rdbuf(out_stream_.rdbuf());
 
-    // unified_rlp_ = from_hex(unified_rlp_str).value_or(Bytes{});
-
-    // Read from binary
-    unified_rlp_ = ByteView{reinterpret_cast<const uint8_t*>(unified_rlp_str.data()), unified_rlp_str.size()};
+    // Copy the data to own it
+    unified_rlp_data_ = unified_rlp_str;
+    unified_rlp_ = ByteView{reinterpret_cast<const uint8_t*>(unified_rlp_data_.data()), unified_rlp_data_.size()};
     std::string msg = "in ctor unified_rlp_str RLP length: " + std::to_string(unified_rlp_str.size()) + " unified_rlp_ RLP length: " + std::to_string(unified_rlp_.size());
+    sys_println(msg.c_str());
+}
+
+StateTransition::StateTransition(std::string&& unified_rlp_str) noexcept
+    : unified_rlp_data_{std::move(unified_rlp_str)} {
+    sys_println("StateTransition::StateTransition (move)");
+
+    // Redirect std::cout and std::cerr to out_stream_ for capturing output.
+    // std::cout.rdbuf(out_stream_.rdbuf());
+    // std::cerr.rdbuf(out_stream_.rdbuf());
+
+    // Create view into the moved data
+    unified_rlp_ = ByteView{reinterpret_cast<const uint8_t*>(unified_rlp_data_.data()), unified_rlp_data_.size()};
+    std::string msg = "in move ctor unified_rlp_data_ RLP length: " + std::to_string(unified_rlp_data_.size()) + " unified_rlp_ RLP length: " + std::to_string(unified_rlp_.size());
     sys_println(msg.c_str());
 }
 
@@ -630,7 +650,9 @@ uint64_t StateTransition::run_rlp() {
 
         if (ValidationResult err{blockchain.insert_block(block, false)}; err != ValidationResult::kOk) {
             std::cout << "Validation error " << magic_enum::enum_name<ValidationResult>(err) << std::endl;
+#ifdef SP1
             sys_println(out_stream_.str().c_str());
+#endif
             return 0;
         }
     }
@@ -646,14 +668,17 @@ uint64_t StateTransition::run_rlp() {
     if (!check_root(pre_trie_payload, state, block.header)) {
         sys_println("ERROR: State Root Mismatch");
     }
-
+    sys_println("OUT dump:");
+#ifdef SP1
+    sys_println(out_stream_.str().c_str());
+#endif
     return block.header.gas_used;
 }
 
 bool StateTransition::check_root(ByteView pre_trie_payload, InMemoryState& state, BlockHeader& header) {
     // Create and populate the node store
     node_store_.populate_from_rlp(pre_trie_payload);
-    sys_println(("Populated node store with " + std::to_string(node_store_.size()) + " nodes").c_str());
+    // sys_println(("Populated node store with " + std::to_string(node_store_.size()) + " nodes").c_str());
 
     auto& acc_changes = state.account_changes().at(header.number);
     const InMemoryState::StorageChanges& storage_changes = state.storage_changes().at(header.number);
@@ -662,18 +687,17 @@ bool StateTransition::check_root(ByteView pre_trie_payload, InMemoryState& state
 
     for (auto& [addr, acc_opt] : acc_changes) {
         dbg_all_acc_chgs.push_back(addr);
-        const Account& acc = acc_opt.has_value()? acc_opt.value(): Account{};
-        auto addr_str = to_hex(addr.bytes);
+        const Account& acc = acc_opt.has_value() ? acc_opt.value() : Account{};
 
         // ===================DEBUG===========
+        auto addr_str = to_hex(addr.bytes);
         sys_println(("\n ==========================\nAddr: " + addr_str).c_str());
-        constexpr evmc::address DBG_ADDRESS = 0x821Bdc25130C06A672e77aaA22c8D14549dfDB1e_address;
+        constexpr evmc::address DBG_ADDRESS = 0x7cb85f75e61226060453a997a7733f76707df337_address;
         if (addr == DBG_ADDRESS) {
             sys_println("AT DBG_ADDRESS");
         }
+        // ==============================
 
-        // ===================DEBUG===========
-        // sys_println(to_hex(acc->storage_root_).c_str());
         auto it = storage_changes.find(addr);
         bytes32 storage_root{acc.storage_root_};
         if (it != storage_changes.end()) {
@@ -681,13 +705,22 @@ bool StateTransition::check_root(ByteView pre_trie_payload, InMemoryState& state
             for (auto& [inc, smap] : it->second) {
                 for (auto& [key, val] : smap) {
                     auto cur_val = state.read_storage(addr, inc, key);
-                    if (cur_val == val) {
-                        continue;
-                    }
+                    // if (cur_val == val) {
+                    // // ===================DEBUG===========
+
+                    // // ===================================
+
+                    //     continue;
+                    // }
                     auto hashed_key = keccak_bytes32(key);
-                    auto hashed_key_new = keccak_bytes(key.bytes);
-                    if (hashed_key != hashed_key_new){
-                        sys_println("FOK: ");
+                    if (cur_val == val) {
+                        // ===================DEBUG===========
+                        // sys_println("if (cur_val == val)");
+                        // sys_println(("key: " + to_hex(key)).c_str());
+                        // sys_println(("hashed_key: " + to_hex(hashed_key)).c_str());
+                        // sys_println(to_hex(cur_val).c_str());
+                        // ===================================
+                        continue;
                     }
                     Bytes val_rlp;
                     val_rlp.reserve(33);
@@ -727,9 +760,12 @@ bool StateTransition::check_root(ByteView pre_trie_payload, InMemoryState& state
             continue;
         }
         auto& curr_acc = cur_acc_opt.value();
-        // if (acc == *cur_acc_opt && storage_root == acc.storage_root_) {
-        //     continue;
-        // }
+        if (acc == *cur_acc_opt && storage_root == acc.storage_root_) {
+            sys_println("acc == *cur_acc_opt && storage_root == acc.storage_root_");
+            auto addr_hash = keccak_bytes(addr.bytes);
+            sys_println(to_hex(addr_hash.bytes).c_str());
+            continue;
+        }
         auto addr_hash = keccak_bytes(addr.bytes);
         auto acc_rlp = curr_acc.rlp(storage_root);
         acc_updates.emplace_back(addr_hash, acc_rlp);
@@ -760,21 +796,17 @@ bool StateTransition::check_root(ByteView pre_trie_payload, InMemoryState& state
     // }
 
     // ===================DEBUG===========
-    sys_println("================================");
-    sys_println("Done with Storage tries");
+    // sys_println("================================");
+    // sys_println("Done with Storage tries");
 
     std::sort(acc_updates.begin(), acc_updates.end());
     auto& prev_root = state.read_header(header.number - 1, header.parent_hash)->state_root;
-    mpt::GridMPT<true> acc_trie{
-        node_store_,
-        prev_root
-    };
+    mpt::GridMPT<false> acc_trie(node_store_, prev_root);
+    sys_println("ACC Trie Before");
+    sys_println(acc_trie.grid_to_string().c_str());
     // ==================================
 
-    auto before = acc_trie.grid_to_string();
     auto new_root = acc_trie.calc_root_from_updates(acc_updates);
-    sys_println("Acc trie Root node, BEFORE: ");
-    sys_println(before.c_str());
     sys_println("Acc trie Root Node, AFTER: ");
     sys_println(acc_trie.grid_to_string().c_str());
     sys_println(("Prev-root: " + to_hex(prev_root)).c_str());

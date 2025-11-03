@@ -22,7 +22,8 @@ class StateTransition {
     bool blockchain_test_{false};
     nlohmann::json base_json_;
     nlohmann::json test_data_;
-    ByteView unified_rlp_;
+    std::string unified_rlp_data_;  // Owns the RLP data
+    ByteView unified_rlp_;           // View into unified_rlp_data_
     std::string test_name_;
     unsigned total_count_{};
     unsigned failed_count_{};
@@ -30,7 +31,9 @@ class StateTransition {
     bool show_diagnostics_{false};
     silkworm::mpt::FlatNodeStore node_store_;
 
-    std::ostringstream out_stream_;
+    #ifdef SP1
+    std::ostringstream out_stream_{};
+    #endif
 
     // void print_message(const ExpectedState& expected_state, const ExpectedSubState& expected_sub_state, const std::string& message);
     // void print_error_message(const ExpectedState& expected_state, const ExpectedSubState& expected_sub_state, const std::string& message);
@@ -40,6 +43,7 @@ class StateTransition {
     explicit StateTransition(const std::string& json_str, bool terminate_on_error, bool show_diagnostics) noexcept;
     explicit StateTransition(const bool terminate_on_error, const bool show_diagnostics) noexcept;
     explicit StateTransition(const std::string& unified_rlp_str) noexcept;
+    explicit StateTransition(std::string&& unified_rlp_str) noexcept;  // Move constructor
     explicit StateTransition(ByteView& unified_rlp) noexcept;
     // std::string name();
     std::string get_env(const std::string& key);
