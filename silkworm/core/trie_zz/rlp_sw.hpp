@@ -109,7 +109,7 @@ inline Bytes encode_branch(const BranchNode& b) {
     // std::cout<< "\n";
 
     rlp::encode(static_buffer, b.value);
-    std::cout << "call to encode_branch " << static_buffer << std::endl;
+    // std::cout << "call to encode_branch " << static_buffer << std::endl;
     return static_buffer;
 }
 
@@ -119,7 +119,7 @@ inline Bytes encode_ext(const ExtensionNode& e) {
     }
     static_buffer.clear();
     ByteView path{e.path.nib.data(), e.path.len};
-    std::cout << "encode_ext path:  " << path << std::endl;
+    // std::cout << "encode_ext path:  " << path << std::endl;
 
     Bytes hp_encoded{encode_path(path, /*terminating=*/false)};
 
@@ -149,7 +149,7 @@ inline Bytes encode_ext(const ExtensionNode& e) {
         static_buffer.append(e.child.bytes, e.child_len);
     }
 
-    std::cout << "call to encode_ext " << static_buffer << std::endl;
+    // std::cout << "call to encode_ext " << static_buffer << std::endl;
 
     return static_buffer;
 }
@@ -304,19 +304,14 @@ inline bool decode_ext_or_leaf(ByteView payload, bool& is_leaf,
 
 // Encode the given line's node
 inline Bytes encode_line(GridLine& line) {
-    Bytes encoded;
     switch (line.kind) {
         case kBranch:
-            encoded = encode_branch(line.branch);
-            break;
+            return encode_branch(line.branch);
         case kExt:
-            encoded = encode_ext(line.ext);
-            break;
-        case kLeaf:
-            encoded = encode_leaf(line.leaf);
-            break;
+            return encode_ext(line.ext);
+        default:
+            return encode_leaf(line.leaf);
     }
-    return encoded;
 }
 
 }  // namespace silkworm::mpt
