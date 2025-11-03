@@ -95,29 +95,24 @@ inline void GridMPT<DeletionEnabled>::seek_with_last_insert(nibbles64& new_nibbl
 // Finally return the root
 template <bool DeletionEnabled>
 bytes32 GridMPT<DeletionEnabled>::calc_root_from_updates(const std::vector<TrieNodeFlat>& updates_sorted) {
-    // Reset state for fresh calculation
-    grid_.clear();
-    depth_ = 0;
-    search_nib_cursor_ = 0;
-    search_nibbles_ = nibbles64{};
-
-    if (prev_root_ != kEmptyRoot) {
-        // Load root on to first line
-        auto rlp = node_store_.get_rlp(prev_root_);
-        unfold_node_from_rlp(rlp, 0, 0);
-        // sys_println(grid_to_string().c_str());
-    }
+    // // Reset state for fresh calculation
+    // grid_.clear();
+    // depth_ = 0;
+    // search_nib_cursor_ = 0;
+    // search_nibbles_ = nibbles64{};
 
     for (const auto& trie_upd : updates_sorted) {
         const ByteView value_view{trie_upd.value_rlp};
 
         // ==============DEBUG===========
         sys_println(("\n Key: " + to_hex(trie_upd.key.bytes)).c_str());
-        constexpr auto debg_key = 0x6a389f876f6d51e458c0ad85e4bf8b99377260c4a6fbe049fe2211bfc5af42c7_bytes32;
+        constexpr auto debg_key = 0xf3f7a9fe364faab93b216da50a3214154f22a0a2b415b23a84c8169e8b636ee3_bytes32;   // 93 block's second 59 key
         if (trie_upd.key == debg_key) {
             sys_println("Found update key");
-            // sys_println(grid_[7].to_string().c_str());
-            // sys_println(grid_[grid_[0].child_depth[6]].to_string().c_str());
+            // sys_println(grid_[5].to_string().c_str());
+            auto root5 = grid_[0].child_depth[5];
+            auto root59 = grid_[root5].child_depth[9];
+            sys_println(grid_[root59].to_string().c_str());
         }
         // =========================
 
@@ -230,7 +225,6 @@ bytes32 GridMPT<DeletionEnabled>::calc_root_from_updates(const std::vector<TrieN
             } else {
                 // It's a leaf:
                 // Find common path and create extension and push
-                // Note: grid_line.leaf.path.len == (64 - search_nib_cursor_)
 
                 size_t cp = 0;
                 while (grid_line.leaf.path[cp] == search_nibbles_[search_nib_cursor_ + cp] && cp < grid_line.leaf.path.len) ++cp;
@@ -248,7 +242,6 @@ bytes32 GridMPT<DeletionEnabled>::calc_root_from_updates(const std::vector<TrieN
                 // Cache the value before splitting
                 LeafNode old_leaf{grid_[depth_].leaf};
                 BranchNode bn{};    // Zero-initialize
-                bn = BranchNode{};  // Ensure all fields are cleared
 
                 if (cp > 0) {  // Need to put an extension before the branch
                     ExtensionNode ext_common{};
@@ -276,15 +269,16 @@ bytes32 GridMPT<DeletionEnabled>::calc_root_from_updates(const std::vector<TrieN
                 }
                 // Insert the leaves to the branch (which is at depth_ now) as parent
                 auto l = make_cur_leaf(value_view);          // sets parent_slot too at l, with first nib
-                if (old_leaf.parent_slot > l.parent_slot) {  // ordering
+                
+                if (old_leaf.parent_slot < l.parent_slot) {  // ordering
                     insert_line(old_leaf.parent_slot, depth_, old_leaf);
                     insert_line(l.parent_slot, depth_ - 1, l);
                 } else {
                     insert_line(l.parent_slot, depth_, l);
                     insert_line(old_leaf.parent_slot, depth_ - 1, old_leaf);
                     // fold_or_seek();
+                    depth_ = grid_.size() - 2;  // set to inserted leaf
                 }
-                depth_ = grid_.size() - 1;  // set to inserted leaf
                 break;                      // insertion complete
             }
         }

@@ -83,6 +83,8 @@ void GridMPT<DeletionEnabled>::fold_back() {
                     parent.child_depth[grid_line.parent_slot] = 0;  // clear
                     grid_.pop_back();
                     return;
+                } else {
+                    sys_println("ERROR: Delete child of an extension!");
                 }
             }
         }
@@ -103,6 +105,16 @@ void GridMPT<DeletionEnabled>::fold_back() {
 
         if (grid_.size() > 0) {
             GridLine& parent = grid_[grid_line.parent_depth];
+
+            if (parent.kind == kBranch && parent.branch.count == 1 ) {
+                // Find the non_empty child
+                uint8_t non_empty_nib = 0;
+                while (parent.branch.child_len[non_empty_nib] == 0) non_empty_nib++;     // TODO: use bit manipulation and mask thingy
+                ExtensionNode ext{
+                nibbles64{
+                    1, {non_empty_nib}}};
+                cast_line(parent, ext);
+            }
 
             // ext -> ext = ext
             if (grid_line.kind == kExt && parent.kind == kExt) {
@@ -185,8 +197,14 @@ inline bool GridMPT<DeletionEnabled>::insert_line(uint8_t parent_slot, uint8_t p
     depth_ = grid_.size() - 1;
 
     if (depth_ > 0) {
-        grid_.back().consumed += grid_[parent_depth].consumed;
-        grid_[parent_depth].child_depth[parent_slot] = depth_;
+        auto& parent = grid_[parent_depth];
+        grid_.back().consumed += parent.consumed;
+        parent.child_depth[parent_slot] = depth_;
+        if (parent.kind == kBranch && parent.branch.child_len[parent_slot] == 0) {
+            parent.branch.count ++;
+            parent.branch.mask |= (1 << parent_slot);
+            parent.branch.child_len[parent_slot] = 1;   // Placeholder, update during fold_back
+        }
     }
     return true;
 }
@@ -299,7 +317,7 @@ inline bool GridMPT<DeletionEnabled>::unfold_slot(uint8_t slot) {
     }
     auto& child = grid_line.branch.child[slot];
     ByteView rlp;
-    constexpr auto DEBUG_CHILD = 0xd56a543f689dd0750b90d9420e058a6491882d80f189692f2c74146e30449ab4_bytes32;
+    // constexpr auto DEBUG_CHILD = 0xd56a543f689dd0750b90d9420e058a6491882d80f189692f2c74146e30449ab4_bytes32;
     if (child_len == 32) {
         // Hash ref
         rlp = node_store_.get_rlp(child);
@@ -320,10 +338,10 @@ inline bool GridMPT<DeletionEnabled>::unfold_slot(uint8_t slot) {
     bool success = unfold_node_from_rlp(rlp, slot, depth_);
     if (success)
         grid_line.child_depth[slot] = depth_;
-    if (child == DEBUG_CHILD){
-        sys_println("Found the DEBUG_CHILD");
-        sys_println(grid_[depth_].to_string().c_str());
-    }
+    // if (child == DEBUG_CHILD){
+    //     sys_println("Found the DEBUG_CHILD");
+    //     sys_println(grid_[depth_].to_string().c_str());
+    // }
     return success;
 }
 
