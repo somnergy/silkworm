@@ -20,15 +20,17 @@ int main(int argc, const char* argv[]) {
         }
 
         const std::string file_path = argv[1];
-        std::ifstream file(file_path);   
+        std::ifstream file(file_path);
         if (!file.is_open()) {
             throw std::runtime_error("Could not open file: " + file_path);
         }
-        auto rlp_str =  std::string((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+        auto rlp_str = std::string((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
 
-        auto state_transition = silkworm::cmd::state_transition::StateTransition(rlp_str);
+        auto state_transition = silkworm::cmd::state_transition::StateTransition(std::move(rlp_str));
         auto total_gas = state_transition.run_rlp();
-        std::cout << "Cumulative Gas Used: " << total_gas << "\n";
+        
+        printf("Cumulative Gas Used: %lu\n", total_gas);
+        return 0;
     } catch (const std::exception& e) {
         // code to handle exceptions of type std::exception and its derived classes
         const auto desc = e.what();
@@ -37,12 +39,11 @@ int main(int argc, const char* argv[]) {
         // code to handle any other type of exception
         std::cerr << "An unknown exception occurred" << std::endl;
     }
+    return 0;
 }
 
-
-
 /** JSON RUN
- * 
+ *
 int main(int argc, const char* argv[]) {
     try {
         if (argc < 3) {
@@ -74,6 +75,6 @@ int main(int argc, const char* argv[]) {
         std::cerr << "An unknown exception occurred" << std::endl;
     }
 }
- * 
- * 
+ *
+ *
  */
