@@ -45,30 +45,43 @@ inline void GridMPT<DeletionEnabled>::seek_with_last_insert(nibbles64& new_nibbl
     // the first level of children from the common branch, ever again
     //================================================
     if (grid_.size() == 1) return;
-    size_t lcp = 0;
-    auto& last_insert = grid_.back();
-    auto cur_parent_depth = last_insert.parent_depth;
-    auto parent_consumed = grid_[cur_parent_depth].consumed;
 
-    if (grid_[last_insert.parent_depth].kind != kBranch) {
+    uint8_t cur_parent_depth, parent_consumed;
+    if constexpr (DeletionEnabled) {
+        if (last_was_delete_){
+            cur_parent_depth = depth_;
+        } else {
+            cur_parent_depth = grid_[depth_].parent_depth;
+        }
+    } else {
+        cur_parent_depth = grid_[depth_].parent_depth;
+    }
+    auto& parent = grid_[cur_parent_depth];
+    if (parent.kind != kBranch) {
         sys_println("ERROR: seek_with_last_insert parent not a branch");
         depth_ = 0;
         return;
     }
+    parent_consumed = parent.consumed;
+
+    size_t lcp = 0;
+
     while (new_nibbles[lcp] == search_nibbles_[lcp] && lcp < parent_consumed) ++lcp;
 
     if (lcp >= parent_consumed) {
         if constexpr (DeletionEnabled) {
-            if (last_insert.leaf.marked_for_deletion) {
+            if (last_was_delete_) {
                 search_nib_cursor_ = search_nib_cursor_ - 1;  // start from the parent branch
+                // delete_leaf(depth_);
                 depth_ = cur_parent_depth;
-                fold_back();
+                last_was_delete_ = false;
+                // fold_back();    // fold at depth instead
                 return;
             }
         }
     } else if (cur_parent_depth > 0) {
         auto next_parent_depth = grid_[cur_parent_depth].parent_depth;
-        parent_consumed = grid_[next_parent_depth].consumed;    // For the next parent
+        parent_consumed = grid_[next_parent_depth].consumed;  // For the next parent
         while (parent_consumed > lcp && cur_parent_depth > 0) {
             fold_children(cur_parent_depth);
             cur_parent_depth = next_parent_depth;
@@ -79,6 +92,7 @@ inline void GridMPT<DeletionEnabled>::seek_with_last_insert(nibbles64& new_nibbl
     } else {
         depth_ = cur_parent_depth;
     }
+    last_was_delete_ = false;       // Probably unnecessary
 
     if (depth_ == 0) {
         search_nib_cursor_ = 0;
@@ -88,7 +102,6 @@ inline void GridMPT<DeletionEnabled>::seek_with_last_insert(nibbles64& new_nibbl
     if (search_nib_cursor_ > 63) {
         sys_println("ERROR: search_nib_cursor_ > 63)");
     }
-   
 }
 
 // Unfold from root as we traverse through the list of account updates
@@ -106,13 +119,9 @@ bytes32 GridMPT<DeletionEnabled>::calc_root_from_updates(const std::vector<TrieN
 
         // ==============DEBUG===========
         sys_println(("\n Key: " + to_hex(trie_upd.key.bytes)).c_str());
-        constexpr auto debg_key = 0xf3f7a9fe364faab93b216da50a3214154f22a0a2b415b23a84c8169e8b636ee3_bytes32;   // 93 block's second 59 key
+        constexpr auto debg_key = 0x844be1469425629a43c8d4d0bae9e5e54048234463c0cf151143389b5bf1885e_bytes32;  // 93 block's second 59 key
         if (trie_upd.key == debg_key) {
             sys_println("Found update key");
-            // sys_println(grid_[5].to_string().c_str());
-            auto root5 = grid_[0].child_depth[5];
-            auto root59 = grid_[root5].child_depth[9];
-            sys_println(grid_[root59].to_string().c_str());
         }
         // =========================
 
@@ -160,8 +169,8 @@ bytes32 GridMPT<DeletionEnabled>::calc_root_from_updates(const std::vector<TrieN
                     }
 
                     // Debug
-                    std::cout << "  About to unfold from RLP with parent_slot=" << static_cast<int>(search_nibbles_[search_nib_cursor_])
-                              << " (search_nib_cursor_=" << static_cast<int>(search_nib_cursor_) << ")" << std::endl;
+                    // std::cout << "  About to unfold from RLP with parent_slot=" << static_cast<int>(search_nibbles_[search_nib_cursor_])
+                    //           << " (search_nib_cursor_=" << static_cast<int>(search_nib_cursor_) << ")" << std::endl;
 
                     unfold_node_from_rlp(rlp, 0, depth_);
                     continue;
@@ -177,10 +186,11 @@ bytes32 GridMPT<DeletionEnabled>::calc_root_from_updates(const std::vector<TrieN
                         // Shorten the grid_line current extension till the divergence point
                         auto subtract_amount = ext_path_len - m;
                         if (subtract_amount > grid_line.consumed) {
-                            sys_println(("ERROR: [grid_mpt.cpp:190] consumed underflow! grid_line.consumed=" + 
-                                        std::to_string(grid_line.consumed) + 
-                                        " subtract_amount=" + std::to_string(subtract_amount) + 
-                                        " (ext_path_len=" + std::to_string(ext_path_len) + ", m=" + std::to_string(m) + ")").c_str());
+                            sys_println(("ERROR: [grid_mpt.cpp:190] consumed underflow! grid_line.consumed=" +
+                                         std::to_string(grid_line.consumed) +
+                                         " subtract_amount=" + std::to_string(subtract_amount) +
+                                         " (ext_path_len=" + std::to_string(ext_path_len) + ", m=" + std::to_string(m) + ")")
+                                            .c_str());
                         }
                         grid_line.consumed = grid_line.consumed - subtract_amount;
                         grid_line.ext.path.len = m;
@@ -232,6 +242,10 @@ bytes32 GridMPT<DeletionEnabled>::calc_root_from_updates(const std::vector<TrieN
                     if constexpr (DeletionEnabled) {
                         if (value_view == ByteView{{0x80}}) {
                             grid_line.leaf.marked_for_deletion = true;
+                            auto parent_depth = grid_line.parent_depth;
+                            delete_leaf(depth_);
+                            last_was_delete_ = true;
+                            depth_ = parent_depth;
                             break;
                         }
                     }
@@ -241,7 +255,7 @@ bytes32 GridMPT<DeletionEnabled>::calc_root_from_updates(const std::vector<TrieN
 
                 // Cache the value before splitting
                 LeafNode old_leaf{grid_[depth_].leaf};
-                BranchNode bn{};    // Zero-initialize
+                BranchNode bn{};  // Zero-initialize
 
                 if (cp > 0) {  // Need to put an extension before the branch
                     ExtensionNode ext_common{};
@@ -268,18 +282,19 @@ bytes32 GridMPT<DeletionEnabled>::calc_root_from_updates(const std::vector<TrieN
                                  static_cast<size_t>(old_leaf.path.len));
                 }
                 // Insert the leaves to the branch (which is at depth_ now) as parent
-                auto l = make_cur_leaf(value_view);          // sets parent_slot too at l, with first nib
+                auto parent_depth = depth_;
+                auto l = make_cur_leaf(value_view);  // sets parent_slot too at l, with first nib
                 
                 if (old_leaf.parent_slot < l.parent_slot) {  // ordering
-                    insert_line(old_leaf.parent_slot, depth_, old_leaf);
-                    insert_line(l.parent_slot, depth_ - 1, l);
+                    insert_line(old_leaf.parent_slot, parent_depth, old_leaf);
+                    insert_line(l.parent_slot, parent_depth, l);
                 } else {
-                    insert_line(l.parent_slot, depth_, l);
-                    insert_line(old_leaf.parent_slot, depth_ - 1, old_leaf);
+                    insert_line(l.parent_slot, parent_depth, l);
+                    insert_line(old_leaf.parent_slot, parent_depth, old_leaf);
                     // fold_or_seek();
                     depth_ = grid_.size() - 2;  // set to inserted leaf
                 }
-                break;                      // insertion complete
+                break;  // insertion complete
             }
         }
     }

@@ -68,26 +68,25 @@ bool GridMPT<DeletionEnabled>::unfold_node_from_rlp(ByteView rlp, uint8_t parent
     return true;
 }
 
+template <bool DeletionEnabled>
+void GridMPT<DeletionEnabled>::delete_leaf(uint8_t depth) {
+    GridLine& grid_line = grid_[depth];
+    GridLine& parent = grid_[grid_line.parent_depth];
+    uint8_t parent_slot = grid_line.parent_slot;
+    if (depth != grid_.size() - 1 && grid_.size() > 0 && parent.kind == kBranch && grid_.back().parent_depth == grid_line.parent_depth) {
+        grid_line = grid_.back();   // Move the last child here
+    }
+    parent.branch.delete_child(parent_slot);
+    parent.child_depth[parent_slot] = 0;  // clear
+    grid_.pop_back();
+}
+
 // Fold the last line from the bottom and returns the number of nibbles consumed
 template <bool DeletionEnabled>
 void GridMPT<DeletionEnabled>::fold_back() {
     auto& grid_line = grid_.back();
 
     if constexpr (DeletionEnabled) {
-        // Would be called from sync_with_last_insert -> when it has common with the last deleted leaf
-        if (grid_line.kind == kLeaf) {
-            if (grid_line.leaf.marked_for_deletion && grid_.size() > 0) {
-                GridLine& parent = grid_[grid_line.parent_depth];
-                if (parent.kind == kBranch) {
-                    parent.branch.delete_child(grid_line.parent_slot);
-                    parent.child_depth[grid_line.parent_slot] = 0;  // clear
-                    grid_.pop_back();
-                    return;
-                } else {
-                    sys_println("ERROR: Delete child of an extension!");
-                }
-            }
-        }
 
         if (grid_line.kind == kBranch && grid_line.branch.count == 1) {  // Should get absorbed into an extension
             // Find the non_empty child
@@ -106,13 +105,14 @@ void GridMPT<DeletionEnabled>::fold_back() {
         if (grid_.size() > 0) {
             GridLine& parent = grid_[grid_line.parent_depth];
 
-            if (parent.kind == kBranch && parent.branch.count == 1 ) {
+
+            if (parent.kind == kBranch && parent.branch.count == 1) {
                 // Find the non_empty child
                 uint8_t non_empty_nib = 0;
-                while (parent.branch.child_len[non_empty_nib] == 0) non_empty_nib++;     // TODO: use bit manipulation and mask thingy
+                while (parent.branch.child_len[non_empty_nib] == 0) non_empty_nib++;  // TODO: use bit manipulation and mask thingy
                 ExtensionNode ext{
-                nibbles64{
-                    1, {non_empty_nib}}};
+                    nibbles64{
+                        1, {non_empty_nib}}};
                 cast_line(parent, ext);
             }
 
@@ -152,7 +152,11 @@ void GridMPT<DeletionEnabled>::fold_back() {
         auto& parent = grid_[grid_line.parent_depth];
         switch (parent.kind) {
             case kBranch:
-                parent.branch.set_child(grid_line.parent_slot, node_ref);
+                if (node_ref.size() == 1){
+                    parent.branch.delete_child(grid_line.parent_slot);
+                } else {
+                    parent.branch.set_child(grid_line.parent_slot, node_ref);
+                }
                 parent.child_depth[grid_line.parent_slot] = 0;  // clear
                 break;
             case kExt:
@@ -201,9 +205,9 @@ inline bool GridMPT<DeletionEnabled>::insert_line(uint8_t parent_slot, uint8_t p
         grid_.back().consumed += parent.consumed;
         parent.child_depth[parent_slot] = depth_;
         if (parent.kind == kBranch && parent.branch.child_len[parent_slot] == 0) {
-            parent.branch.count ++;
+            parent.branch.count++;
             parent.branch.mask |= (1 << parent_slot);
-            parent.branch.child_len[parent_slot] = 1;   // Placeholder, update during fold_back
+            parent.branch.child_len[parent_slot] = 1;  // Placeholder, update during fold_back
         }
     }
     return true;

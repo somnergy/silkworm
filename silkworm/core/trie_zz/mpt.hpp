@@ -263,6 +263,7 @@ class GridMPT {
     bool should_unfold_{false};
     bool should_fold_{false};
     bool is_searching_{false};
+    bool last_was_delete_{false};
 
     // A store containing the set of keys to be inserted
     NodeStore& node_store_;
@@ -298,6 +299,8 @@ class GridMPT {
 
     template <typename NodeType>
     bool insert_line(uint8_t parent_slot, uint8_t parent_depth, NodeType& node);
+
+    void delete_leaf(uint8_t depth);
 
     template <typename NodeType>
     bool cast_line(GridLine& line, NodeType& node);
