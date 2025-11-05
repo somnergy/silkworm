@@ -2,19 +2,9 @@
 	path = third_party/evmone/evmone
 	url = https://github.com/somnathb1/zevmone.git
 	branch = main
-[submodule "cbor-cpp"]
-	path = third_party/cbor-cpp/cbor-cpp
-	url = https://github.com/erigontech/cbor-cpp.git
 [submodule "interfaces"]
 	path = third_party/erigon-interfaces
 	url = https://github.com/erigontech/interfaces.git
-[submodule "secp256k1"]
-	path = third_party/secp256k1/secp256k1
-	url = https://github.com/bitcoin-core/secp256k1.git
-[submodule "libff"]
-	path = third_party/libff/libff
-	url = https://github.com/somnathb1/zlibff
-	branch = win
 [submodule "intx"]
 	path = third_party/intx/intx
 	url = https://github.com/somnathb1/intx.git
