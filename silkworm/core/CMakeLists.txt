@@ -24,7 +24,7 @@ set(SILKWORM_CORE_PUBLIC_LIBS
     magic_enum::magic_enum
     Microsoft.GSL::GSL
     nlohmann_json::nlohmann_json
-    secp256k1
+    # secp256k1
     tl::expected
 )
 set(SILKWORM_CORE_PRIVATE_LIBS blst::blst)
