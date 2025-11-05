@@ -252,28 +252,28 @@ Block StateTransition::get_block(InMemoryState& state, ChainConfig& chain_config
     return block;
 }
 
-std::unique_ptr<evmc::address> StateTransition::private_key_to_address(const std::string& private_key) {
-    /// Example
-    // private key: 0x45a915e4d060149eb4365960e6a7a45f334393093061116b197e3240065ff2d8
-    // public key : 043a514176466fa815ed481ffad09110a2d344f6c9b78c1d14afc351c3a51be33d8072e77939dc03ba44790779b7a1025baf3003f6732430e20cd9b76d953391b3
-    // address    : 0xa94f5374Fce5edBC8E2a8697C15331677e6EbF0B
+// std::unique_ptr<evmc::address> StateTransition::private_key_to_address(const std::string& private_key) {
+//     /// Example
+//     // private key: 0x45a915e4d060149eb4365960e6a7a45f334393093061116b197e3240065ff2d8
+//     // public key : 043a514176466fa815ed481ffad09110a2d344f6c9b78c1d14afc351c3a51be33d8072e77939dc03ba44790779b7a1025baf3003f6732430e20cd9b76d953391b3
+//     // address    : 0xa94f5374Fce5edBC8E2a8697C15331677e6EbF0B
 
-    auto private_key_bytes = from_hex(private_key).value();
+//     auto private_key_bytes = from_hex(private_key).value();
 
-    if (private_key_bytes.length() == 32) {
-        auto pair = sentry::EccKeyPair(private_key_bytes);
-        uint8_t out[kAddressLength];
-        auto public_key_hash = keccak256(pair.public_key().serialized());
-        std::memcpy(out, public_key_hash.bytes + 12, sizeof(out));
-        return std::make_unique<evmc::address>(bytes_to_address(out));
-    }
+//     if (private_key_bytes.length() == 32) {
+//         auto pair = sentry::EccKeyPair(private_key_bytes);
+//         uint8_t out[kAddressLength];
+//         auto public_key_hash = keccak256(pair.public_key().serialized());
+//         std::memcpy(out, public_key_hash.bytes + 12, sizeof(out));
+//         return std::make_unique<evmc::address>(bytes_to_address(out));
+//     }
 
-    uint8_t out[kAddressLength];
-    // auto public_key_hash = keccak256(pair.public_key().serialized());
-    // std::memcpy(out, public_key_hash.bytes + 12, sizeof(out));
+//     uint8_t out[kAddressLength];
+//     // auto public_key_hash = keccak256(pair.public_key().serialized());
+//     // std::memcpy(out, public_key_hash.bytes + 12, sizeof(out));
 
-    return std::make_unique<evmc::address>(bytes_to_address(out));
-}
+//     return std::make_unique<evmc::address>(bytes_to_address(out));
+// }
 
 std::unique_ptr<evmc::address> StateTransition::sender_to_address(const std::string& sender) {
     return std::make_unique<evmc::address>(hex_to_address(sender));

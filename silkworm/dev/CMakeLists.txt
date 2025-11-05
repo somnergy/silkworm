@@ -24,7 +24,6 @@ silkworm_library(
 # set_property(TARGET silkworm_dev APPEND PROPERTY
 #   INTERFACE_LINK_LIBRARIES nlohmann_json::nlohmann_json)
 
-## Enable it only for local testing due to gmp ld linking issue
 if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL "riscv32")
   add_subdirectory(cli)
 endif()
