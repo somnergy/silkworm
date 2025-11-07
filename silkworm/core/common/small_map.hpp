@@ -24,7 +24,6 @@ class SmallMap {
     constexpr SmallMap() noexcept = default;
 
     constexpr SmallMap(std::initializer_list<ValueType> init) : size_(init.size()) {
-        // SILKWORM_ASSERT(size_ <= maximum_size);
         for (size_t i{0}; i < size_; ++i) {
             data_[i] = *(std::data(init) + i);
         }

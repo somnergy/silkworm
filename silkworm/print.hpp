@@ -1,7 +1,7 @@
 
 #pragma once
 #ifdef SP1
-#include "sp1_syscalls.hpp"
+#include <sp1_syscalls.hpp>
 #elif defined(QEMU_DEBUG)
 #include "semihosting.hpp"
 #else

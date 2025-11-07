@@ -69,7 +69,11 @@ std::optional<Config> Config::from_json(const nlohmann::json& json) noexcept {
     if (sprint.size() > SmallMap<BlockNum, uint64_t>::max_size()) {
         return std::nullopt;
     }
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Warray-bounds"
+    // silence misdiagnostics in gcc 14
     config.sprint = {sprint.begin(), sprint.end()};
+#pragma GCC diagnostic pop
 
     config.validator_contract = hex_to_address(json["validatorContract"].get<std::string>(), /*return_zero_on_err=*/true);
     if (is_zero(config.validator_contract)) {

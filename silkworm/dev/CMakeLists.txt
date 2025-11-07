@@ -24,6 +24,6 @@ silkworm_library(
 # set_property(TARGET silkworm_dev APPEND PROPERTY
 #   INTERFACE_LINK_LIBRARIES nlohmann_json::nlohmann_json)
 
-if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL "riscv32")
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64|aarch64|arm64)$")
   add_subdirectory(cli)
 endif()

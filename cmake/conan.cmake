@@ -16,6 +16,8 @@ function(guess_conan_profile)
 
   if("${CMAKE_HOST_SYSTEM_PROCESSOR}" STREQUAL "")
     set(ARCH_NAME "")
+  elseif(CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL riscv64)
+    set(ARCH_NAME riscv64)
   elseif(CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL riscv32)
     set(ARCH_NAME riscv32)
   elseif(CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL x86_64)
