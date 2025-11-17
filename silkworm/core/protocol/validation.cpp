@@ -337,6 +337,9 @@ ValidationResult validate_requests_root(const BlockHeader& header, const std::ve
 
     // Withdrawal requests
     {
+        if (evm.state().get_code(kWithdrawalRequestAddress).empty()) {
+            return ValidationResult::kRequestsProcessingFailure;
+        }
         Transaction system_txn{};
         system_txn.type = TransactionType::kSystem;
         system_txn.to = kWithdrawalRequestAddress;
@@ -344,10 +347,16 @@ ValidationResult validate_requests_root(const BlockHeader& header, const std::ve
         system_txn.set_sender(kSystemAddress);
         const auto withdrawals = evm.execute(system_txn, kSystemCallGasLimit);
         evm.state().destruct_touched_dead();
+        if (withdrawals.status != EVMC_SUCCESS) {
+            return ValidationResult::kRequestsProcessingFailure;
+        }
         requests.add_request(FlatRequestType::kWithdrawalRequest, withdrawals.data);
     }
     // Consolidation requests
     {
+        if (evm.state().get_code(kConsolidationRequestAddress).empty()) {
+            return ValidationResult::kRequestsProcessingFailure;
+        }
         Transaction system_txn{};
         system_txn.type = TransactionType::kSystem;
         system_txn.to = kConsolidationRequestAddress;
@@ -355,6 +364,9 @@ ValidationResult validate_requests_root(const BlockHeader& header, const std::ve
         system_txn.set_sender(kSystemAddress);
         const auto consolidations = evm.execute(system_txn, kSystemCallGasLimit);
         evm.state().destruct_touched_dead();
+        if (consolidations.status != EVMC_SUCCESS) {
+            return ValidationResult::kRequestsProcessingFailure;
+        }
         requests.add_request(FlatRequestType::kConsolidationRequest, consolidations.data);
     }
 

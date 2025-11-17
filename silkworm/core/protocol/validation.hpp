@@ -97,6 +97,7 @@ enum class [[nodiscard]] ValidationResult {
 
     // EIP-7685: Requests root mismatch
     kRequestsRootMismatch,
+    kRequestsProcessingFailure,
 
     // EIP-7623: Increase calldata cost
     kFloorCost,
