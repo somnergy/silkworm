@@ -333,7 +333,9 @@ ValidationResult validate_requests_root(const BlockHeader& header, const std::ve
     FlatRequests requests;
 
     // Dequeue deposit requests by parsing logs
-    requests.extract_deposits_from_logs(logs);
+    if (!requests.extract_deposits_from_logs(logs)) {
+        return ValidationResult::kRequestsProcessingFailure;
+    }
 
     // Withdrawal requests
     {
