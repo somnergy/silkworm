@@ -345,6 +345,22 @@ namespace {
 
         Block block;
         ByteView view{*rlp};
+
+        /// The CL gossip protocol constraint of the maximum block size (EIP-7934).
+        constexpr size_t MAX_BLOCK_SIZE = 10 * 1024 * 1024;
+        /// The safety margin for beacon block content (EIP-7934).
+        constexpr size_t SAFETY_MARGIN = 2 * 1024 * 1024;
+        /// The maximum EL block size when RLP encoded (EIP-7934).
+        constexpr size_t MAX_RLP_BLOCK_SIZE = MAX_BLOCK_SIZE - SAFETY_MARGIN;
+
+        if (view.size() > MAX_RLP_BLOCK_SIZE) {
+            if (invalid)
+                return Status::kPassed;
+
+            // TODO: Ignore big blocks before Osaka because we don't have fork config here.
+            return Status::kSkipped;
+        }
+
         if (!rlp::decode(view, block)) {
             if (invalid) {
                 return Status::kPassed;
