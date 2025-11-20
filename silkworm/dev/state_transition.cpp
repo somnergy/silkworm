@@ -24,7 +24,6 @@
 #include <silkworm/core/types/evmc_bytes32.hpp>
 #include <silkworm/dev/common/ecc_key_pair.hpp>
 
-#include "../print.hpp"
 #include "expected_state.hpp"
 
 namespace silkworm::cmd::state_transition {
@@ -32,53 +31,27 @@ namespace silkworm::cmd::state_transition {
 StateTransition::StateTransition(const std::string& json_str, const bool terminate_on_error, const bool show_diagnostics) noexcept
     : terminate_on_error_{terminate_on_error},
       show_diagnostics_{show_diagnostics} {
-    sys_println("StateTransition ctor with string");
-
-    // Redirect std::cout and std::cerr to out_stream_ for capturing output.
-    std::cout.rdbuf(out_stream_.rdbuf());
-    std::cerr.rdbuf(out_stream_.rdbuf());
-
-    std::cout << "Test std::cout\n";
-    sys_println("std::cout tested");
-    std::cerr << "Test std::cerr\n";
-    sys_println("std::cerr tested");
-
-    // Test the captured output dump.
-    sys_println("OUT dump:");
-    sys_println(out_stream_.str().c_str());
     base_json_ = nlohmann::json::parse(json_str);
     auto test_object = base_json_.begin();
     test_name_ = test_object.key();
     // blockchain_test_ = test_object->contains("_info") && test_object->contains("blocks");
     blockchain_test_ = true;
     if (blockchain_test_) {
-        sys_println("Blockchain test detected");
+        std::cout << "Blockchain test\n";
     }
     test_data_ = test_object.value();
 }
 
 StateTransition::StateTransition(ByteView& unified_rlp) noexcept
     : unified_rlp_{unified_rlp} {
-    sys_println("StateTransition::StateTransition");
-
-    // Redirect std::cout and std::cerr to out_stream_ for capturing output.
-    std::cout.rdbuf(out_stream_.rdbuf());
-    std::cerr.rdbuf(out_stream_.rdbuf());
 }
 
 StateTransition::StateTransition(const std::string& unified_rlp_str) noexcept {
-    sys_println("StateTransition::StateTransition");
-
-    // Redirect std::cout and std::cerr to out_stream_ for capturing output.
-    std::cout.rdbuf(out_stream_.rdbuf());
-    std::cerr.rdbuf(out_stream_.rdbuf());
-
     // unified_rlp_ = from_hex(unified_rlp_str).value_or(Bytes{});
 
     // Read from binary
     unified_rlp_ = ByteView{reinterpret_cast<const uint8_t*>(unified_rlp_str.data()), unified_rlp_str.size()};
-    std::string msg = "in ctor unified_rlp_str RLP length: " + std::to_string(unified_rlp_str.size()) + " unified_rlp_ RLP length: " + std::to_string(unified_rlp_.size());
-    sys_println(msg.c_str());
+    std::cout << "in ctor unified_rlp_str RLP length: " << unified_rlp_str.size() << " unified_rlp_ RLP length: " << unified_rlp_.size() << "\n";
 }
 
 StateTransition::StateTransition(const bool terminate_on_error, const bool show_diagnostics) noexcept
@@ -385,7 +358,7 @@ namespace {
             if (invalid) {
                 return Status::kPassed;
             }
-            std::cout << "Validation error " << static_cast<int>(err) << std::endl;
+            std::cout << "Validation error " << magic_enum::enum_name<ValidationResult>(err) << std::endl;
             return Status::kFailed;
         }
 
@@ -544,58 +517,58 @@ namespace {
 }  // namespace
 
 uint64_t StateTransition::run_rlp() {
-    sys_println(("run_rlp: Unified RLP length: " + std::to_string(unified_rlp_.size())).c_str());
+    std::cout << "run_rlp: Unified RLP length: " << unified_rlp_.size() << "\n";
 
     Block genesisBlock, block;
     ByteView pre_state_rlp;
 
     const auto rlp_head{rlp::decode_header(unified_rlp_)};
     if (!rlp_head) {
-        sys_println("ERROR: Failed to Decode unified_rlp overall header");
+        std::cout << "ERROR: Failed to Decode unified_rlp overall header\n";
         return 0;
     }
     if (!rlp_head->list) {
-        sys_println(("ERROR: Failed to Decode unified_rlp: Not list. Payload length: " + std::to_string(rlp_head->payload_length)).c_str());
+        std::cout << "ERROR: Failed to Decode unified_rlp: Not list. Payload length: " << rlp_head->payload_length << "\n";
         return 0;
     }
 
     // Decode Genesis Block
     ByteView payload_view = unified_rlp_.substr(0, rlp_head->payload_length);
     if (payload_view.empty()) {
-        sys_println("ERROR: Failed to Decode unified_rlp payload view");
+        std::cout << "ERROR: Failed to Decode unified_rlp payload view\n";
         return 0;
     }
     auto genesis_header = rlp::decode_header(payload_view);
     if (!genesis_header) {
-        sys_println("ERROR: Failed to Decode Genesis Block RLP");
+        std::cout << "ERROR: Failed to Decode Genesis Block RLP\n";
         return 0;
     }
     ByteView genesis_payload = payload_view.substr(0, genesis_header->payload_length);
     if (!rlp::decode(genesis_payload, genesisBlock)) {
-        sys_println("ERROR: Failed to Decode Genesis Block RLP");
+        std::cout << "ERROR: Failed to Decode Genesis Block RLP\n";
         return 0;
     }
     payload_view.remove_prefix(genesis_header->payload_length);
 
     if (payload_view.empty()) {
-        sys_println("ERROR: Failed to Decode Block RLP");
+        std::cout << "ERROR: Failed to Decode Block RLP\n";
         return 0;
     }
     auto block_header = rlp::decode_header(payload_view);
     if (!block_header) {
-        sys_println("ERROR: Failed to Decode Block RLP");
+        std::cout << "ERROR: Failed to Decode Block RLP\n";
         return 0;
     }
     ByteView block_payload = payload_view.substr(0, block_header->payload_length);
     if (!rlp::decode(block_payload, block)) {
-        sys_println("ERROR: Failed to Decode Genesis Block RLP");
+        std::cout << "ERROR: Failed to Decode Genesis Block RLP\n";
         return 0;
     }
     payload_view.remove_prefix(block_header->payload_length);
 
     auto pre_rlp_head = rlp::decode_header(payload_view);
     if (!pre_rlp_head) {
-        sys_println("ERROR: Failed to Decode Pre-State RLP");
+        std::cout << "ERROR: Failed to Decode Pre-State RLP\n";
         return 0;
     }
     ByteView pre_rlp_payload = payload_view.substr(0, pre_rlp_head->payload_length);
@@ -606,16 +579,16 @@ uint64_t StateTransition::run_rlp() {
     if (headers_overall_rlp_header) {  // Skip invalid headers list rlp
         auto headers_list_header = rlp::decode_header(payload_view);
         if (!headers_list_header || !headers_list_header->list) {
-            sys_println("Invalid headers list entry");
+            std::cout << "Invalid headers list entry\n";
         } else {
             ByteView headers_list_view = payload_view.substr(0, headers_list_header->payload_length);
             while (!headers_list_view.empty()) {
                 auto entry_header{rlp::decode_header(headers_list_view)};
-                ByteView hh_view = headers_list_view.substr(0, entry_header -> payload_length);
+                ByteView hh_view = headers_list_view.substr(0, entry_header->payload_length);
                 Block bb;
                 rlp::decode(hh_view, bb.header);
                 state.insert_block(bb, bb.header.hash());
-                headers_list_view.remove_prefix(entry_header -> payload_length);
+                headers_list_view.remove_prefix(entry_header->payload_length);
             }
         }
     }
@@ -624,8 +597,7 @@ uint64_t StateTransition::run_rlp() {
     Blockchain blockchain{state, config, genesisBlock};
 
     if (ValidationResult err{blockchain.insert_block(block, false)}; err != ValidationResult::kOk) {
-        std::cout << "Validation error " << magic_enum::enum_name<ValidationResult>(err) << std::endl;
-        sys_println(out_stream_.str().c_str());
+        std::cout << "Validation error " << magic_enum::enum_name<ValidationResult>(err) << '\n';
         return 0;
     }
 
@@ -634,26 +606,21 @@ uint64_t StateTransition::run_rlp() {
 
 uint64_t StateTransition::run(uint32_t num_runs, bool is_test) {
     if (is_test) {
-        sys_println("Running blockchain test");
-
         for (const auto& [name, test] : base_json_.items()) {
-            sys_print(name.c_str());
+            std::cout << name << ":\n";
             const auto result = blockchain_test(test);
             if (result.failed != 0) {
-                sys_println(" FAILED");
-                // TODO: Use panic, because syscall_halt() doesn't link.
-                __builtin_trap();
+                std::cout << " FAILED\n";
             } else if (result.skipped != 0) {
-                sys_println(" SKIPPED");
+                std::cout << " SKIPPED\n";
             } else {
-                sys_println(" passed");
+                std::cout << " passed\n";
             }
         }
         return 0;
     }
 
-    auto msg = "Running State transition. num_runs=" + std::to_string(num_runs);
-    sys_println(msg.c_str());
+    std::cout << "Running State transition. num_runs=" << num_runs << "\n";
     failed_count_ = 0;
     total_count_ = 0;
     uint64_t total_gas = 0;
@@ -687,7 +654,7 @@ uint64_t StateTransition::run(uint32_t num_runs, bool is_test) {
             txn_validation == ValidationResult::kOk) {
             //============== [TESTING ONLY] SIMULATING MULTIPLE RUNS=====
             for (uint32_t i = 0; i < num_runs; i++) {
-                sys_println("Inside multiple runs loop");
+                std::cout << "Inside multiple runs loop\n";
 
                 auto state_cp = read_genesis_allocation(test_data_["pre"]);
                 ExecutionProcessor ccprocessor{block, *rule_set, state_cp, config, true};
