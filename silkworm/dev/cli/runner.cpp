@@ -31,7 +31,7 @@ int main(int argc, const char* argv[]) {
             return std::string((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
         }(json_file_path);
         auto state_transition = StateTransition(json_str, false, true);
-        auto total_gas = state_transition.run(num_runs);
+        auto total_gas = state_transition.run(num_runs, true);
         std::cout << "Cumulative Gas Used: " << total_gas << "\n";
 
     } catch (const std::exception& e) {
