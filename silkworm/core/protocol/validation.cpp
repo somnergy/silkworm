@@ -216,6 +216,15 @@ ValidationResult pre_validate_common_forks(const Transaction& txn, const evmc_re
             return ValidationResult::kFloorCost;
         }
     }
+
+    if (rev >= EVMC_OSAKA) {
+        /// The maximum allowed gas limit for a transaction (EIP-7825).
+        constexpr auto MAX_TX_GAS_LIMIT = 0x1000000;  // 2**24
+        if (txn.gas_limit > MAX_TX_GAS_LIMIT) {
+            return ValidationResult::kMaxTransactionGasLimitExceeded;
+        }
+    }
+
     return ValidationResult::kOk;
 }
 
