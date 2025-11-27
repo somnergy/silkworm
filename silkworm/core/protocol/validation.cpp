@@ -223,6 +223,9 @@ ValidationResult pre_validate_common_forks(const Transaction& txn, const evmc_re
         if (txn.gas_limit > MAX_TX_GAS_LIMIT) {
             return ValidationResult::kMaxTransactionGasLimitExceeded;
         }
+        if (txn.blob_versioned_hashes.size() > 6) {
+            return ValidationResult::kTooManyBlobs;
+        }
     }
 
     return ValidationResult::kOk;
