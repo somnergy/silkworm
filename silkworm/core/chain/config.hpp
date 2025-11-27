@@ -37,6 +37,12 @@ namespace protocol {
 
 using ChainId = uint64_t;
 
+struct BlobParams {
+    uint16_t target{0};
+    uint16_t max{0};
+    uint32_t base_fee_update_fraction{0};
+};
+
 struct ChainConfig {
     //! \brief Returns the chain identifier
     //! \see https://eips.ethereum.org/EIPS/eip-155
@@ -87,6 +93,9 @@ struct ChainConfig {
     //! \details In other words, on behalf of Json chain config data
     //! returns whether specific HF have occurred
     evmc_revision revision(BlockNum block_num, uint64_t block_time) const noexcept;
+
+    /// Returns the blob parameters for a given block time.
+    BlobParams blob_params(uint64_t block_time) const noexcept;
 
     std::vector<BlockNum> distinct_fork_block_nums() const;
     std::vector<BlockTime> distinct_fork_times() const;

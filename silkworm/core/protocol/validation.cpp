@@ -97,7 +97,7 @@ ValidationResult validate_transaction(const Transaction& txn, const IntraBlockSt
 ValidationResult pre_validate_transactions(const Block& block, const ChainConfig& config) {
     const BlockHeader& header{block.header};
     const evmc_revision rev{config.revision(header.number, header.timestamp)};
-    const std::optional<intx::uint256> blob_gas_price{header.blob_gas_price()};
+    const std::optional<intx::uint256> blob_gas_price{header.blob_gas_price(config)};
 
     for (const Transaction& txn : block.transactions) {
         ValidationResult err{pre_validate_transaction(txn, rev, config.chain_id,
@@ -132,7 +132,7 @@ ValidationResult validate_call_precheck(const Transaction& txn, const EVM& evm) 
         }
     }
 
-    if (const auto forks_check = pre_validate_common_forks(txn, evm.revision(), evm.block().header.blob_gas_price()); forks_check != ValidationResult::kOk) {
+    if (const auto forks_check = pre_validate_common_forks(txn, evm.revision(), evm.block().header.blob_gas_price(evm.config())); forks_check != ValidationResult::kOk) {
         return forks_check;
     }
 
@@ -260,7 +260,7 @@ intx::uint256 compute_call_cost(const Transaction& txn, const intx::uint256& eff
     // EIP-4844 blob gas cost (calc_data_fee)
     if (evm.block().header.blob_gas_used && evm.revision() >= EVMC_CANCUN) {
         // compute blob fee for eip-4844 data blobs if any
-        const intx::uint256 blob_gas_price{evm.block().header.blob_gas_price().value_or(0)};
+        const intx::uint256 blob_gas_price{evm.block().header.blob_gas_price(evm.config()).value_or(0)};
         required_funds += txn.total_blob_gas() * blob_gas_price;
     }
 
@@ -300,16 +300,26 @@ intx::uint256 expected_base_fee_per_gas(const BlockHeader& parent) {
 
 uint64_t calc_excess_blob_gas(const BlockHeader& header, const BlockHeader& parent, const ChainConfig& chain_config) {
     const uint64_t parent_excess_blob_gas{parent.excess_blob_gas.value_or(0)};
-    const uint64_t consumed_blob_gas{parent.blob_gas_used.value_or(0)};
+    const uint64_t parent_blob_gas_used{parent.blob_gas_used.value_or(0)};
+    const intx::uint256 parent_base_fee{parent.base_fee_per_gas.value_or(0)};
 
     const auto rev = chain_config.revision(header.number, header.timestamp);
 
-    // EIP-7691: Blob throughput increase
-    const auto target_block_gas_per_block = rev >= EVMC_PRAGUE ? kTargetBlobGasPerBlockPrague : kTargetBlobGasPerBlock;
-    if (parent_excess_blob_gas + consumed_blob_gas < target_block_gas_per_block) {
+    /// The base cost of a blob (EIP-7918).
+    static constexpr auto BLOB_BASE_COST = 0x2000;
+
+    const auto blob_params = chain_config.blob_params(header.timestamp);
+    const intx::uint256 parent_blob_base_fee = calc_blob_gas_price(parent.excess_blob_gas.value_or(0), blob_params);
+
+    const auto target_blob_gas_per_block = uint64_t{blob_params.target} * kGasPerBlob;
+    if (parent_excess_blob_gas + parent_blob_gas_used < target_blob_gas_per_block)
         return 0;
-    }
-    return parent_excess_blob_gas + consumed_blob_gas - target_block_gas_per_block;
+
+    if (rev >= EVMC_OSAKA && BLOB_BASE_COST * parent_base_fee > kGasPerBlob * parent_blob_base_fee)
+        return parent_excess_blob_gas +
+               parent_blob_gas_used * (blob_params.max - blob_params.target) / blob_params.max;
+
+    return parent_excess_blob_gas + parent_blob_gas_used - target_blob_gas_per_block;
 }
 
 evmc::bytes32 compute_transaction_root(const BlockBody& body) {

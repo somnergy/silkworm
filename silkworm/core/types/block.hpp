@@ -23,7 +23,7 @@ namespace silkworm {
 
 using TotalDifficulty = intx::uint256;
 
-intx::uint256 calc_blob_gas_price(uint64_t excess_blob_gas, evmc_revision revision);
+intx::uint256 calc_blob_gas_price(uint64_t excess_blob_gas, BlobParams blob_params);
 
 struct BlockHeader {
     using NonceType = std::array<uint8_t, 8>;
@@ -67,7 +67,7 @@ struct BlockHeader {
     ethash::hash256 boundary() const;
 
     //! \see https://eips.ethereum.org/EIPS/eip-4844#gas-accounting
-    std::optional<intx::uint256> blob_gas_price() const;
+    std::optional<intx::uint256> blob_gas_price(const ChainConfig& config) const;
 
     friend bool operator==(const BlockHeader&, const BlockHeader&) = default;
 };

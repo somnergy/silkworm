@@ -661,7 +661,7 @@ uint64_t StateTransition::run(uint32_t num_runs, bool is_test) {
 
         Receipt receipt;
         const evmc_revision rev{config.revision(block.header.number, block.header.timestamp)};
-        auto pre_txn_validation = protocol::pre_validate_transaction(txn, rev, config.chain_id, block.header.base_fee_per_gas, block.header.blob_gas_price());
+        auto pre_txn_validation = protocol::pre_validate_transaction(txn, rev, config.chain_id, block.header.base_fee_per_gas, block.header.blob_gas_price(config));
         auto txn_validation = protocol::validate_transaction(txn, processor.evm().state(), processor.available_gas());
 
         if (pre_block_validation == ValidationResult::kOk &&

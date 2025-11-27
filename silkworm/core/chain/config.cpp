@@ -202,6 +202,19 @@ evmc_revision ChainConfig::revision(uint64_t block_num, uint64_t block_time) con
     return EVMC_FRONTIER;
 }
 
+BlobParams ChainConfig::blob_params(uint64_t block_time) const noexcept {
+    if (osaka_time && block_time >= osaka_time) {
+        return {6, 9, 5007716};
+    }
+    if (prague_time && block_time >= prague_time) {
+        return {6, 9, 5007716};
+    }
+    if (cancun_time && block_time >= cancun_time) {
+        return {3, 6, 3338477};
+    }
+    return {};
+}
+
 std::vector<BlockNum> ChainConfig::distinct_fork_block_nums() const {
     std::set<BlockNum> ret;
 

@@ -108,7 +108,7 @@ ExecutionProcessor::ExecutionProcessor(const Block& block, protocol::RuleSet& ru
         .prev_randao = block.header.difficulty == 0 ? block.header.prev_randao : intx::be::store<evmone::state::bytes32>(intx::uint256{block.header.difficulty}),
         .base_fee = static_cast<uint64_t>(block.header.base_fee_per_gas.value_or(0)),
         .excess_blob_gas = block.header.excess_blob_gas.value_or(0),
-        .blob_base_fee = block.header.blob_gas_price().value_or(0),
+        .blob_base_fee = block.header.blob_gas_price(config).value_or(0),
     };
     for (const auto& o : block.ommers)
         evm1_block_.ommers.emplace_back(evmone::state::Ommer{o.beneficiary, static_cast<uint32_t>(block.header.number - o.number)});
@@ -240,7 +240,7 @@ void ExecutionProcessor::execute_transaction(const Transaction& txn, Receipt& re
     state_.subtract_from_balance(*sender, txn.gas_limit * effective_gas_price);
 
     // EIP-4844 blob gas cost (calc_data_fee)
-    const intx::uint256 blob_gas_price{header.blob_gas_price().value_or(0)};
+    const intx::uint256 blob_gas_price{header.blob_gas_price(evm_.config()).value_or(0)};
     state_.subtract_from_balance(*sender, txn.total_blob_gas() * blob_gas_price);
 
     const CallResult vm_res = evm_.execute(txn, execution_gas_limit);

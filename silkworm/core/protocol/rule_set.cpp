@@ -50,7 +50,8 @@ ValidationResult RuleSet::pre_validate_block_body(const Block& block, const Bloc
         for (const Transaction& tx : block.transactions) {
             *blob_gas_used += tx.total_blob_gas();
         }
-        const auto max_blob_gas_per_block = rev >= EVMC_PRAGUE ? kMaxBlobGasPerBlockPrague : kMaxBlobGasPerBlock;
+        const auto blob_params = chain_config_->blob_params(header.timestamp);
+        const auto max_blob_gas_per_block = blob_params.max * kGasPerBlob;
         if (blob_gas_used > max_blob_gas_per_block) {
             return ValidationResult::kTooManyBlobs;
         }
