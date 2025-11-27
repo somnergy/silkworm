@@ -28,8 +28,6 @@ class StateTransition {
     bool terminate_on_error_{false};
     bool show_diagnostics_{false};
 
-    std::ostringstream out_stream_;
-
     // void print_message(const ExpectedState& expected_state, const ExpectedSubState& expected_sub_state, const std::string& message);
     // void print_error_message(const ExpectedState& expected_state, const ExpectedSubState& expected_sub_state, const std::string& message);
     // void print_diagnostic_message(const ExpectedState& expected_state, const ExpectedSubState& expected_sub_state, const std::string& message);

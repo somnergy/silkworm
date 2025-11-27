@@ -32,8 +32,6 @@ add_library(
   evmone/lib/evmone/constants.hpp
   evmone/lib/evmone/delegation.cpp
   evmone/lib/evmone/delegation.hpp
-  evmone/lib/evmone/eof.cpp
-  evmone/lib/evmone/eof.hpp
   evmone/lib/evmone/execution_state.hpp
   evmone/lib/evmone/instructions_calls.cpp
   evmone/lib/evmone/instructions_opcodes.hpp
@@ -54,6 +52,7 @@ add_library(
   evmone/lib/evmone_precompiles/bn254.cpp
   evmone/lib/evmone_precompiles/pairing/bn254/pairing.cpp
   evmone/lib/evmone_precompiles/secp256k1.cpp
+  evmone/lib/evmone_precompiles/secp256r1.cpp
   evmone/lib/evmone_precompiles/bls.cpp
   evmone/test/state/host.cpp
   evmone/test/state/precompiles.cpp

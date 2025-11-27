@@ -282,8 +282,7 @@ evmc_result EVM::execute_with_baseline_interpreter(evmc_revision rev, const evmc
         }
     }
     if (!analysis) {
-        // EOF is disabled although evmone supports it. This will be needed as early as Prague, maybe later.
-        analysis = std::make_shared<evmone::baseline::CodeAnalysis>(evmone::baseline::analyze(code, /*eof_enabled=*/false));
+        analysis = std::make_shared<evmone::baseline::CodeAnalysis>(evmone::baseline::analyze(code));
         if (use_cache) {
             analysis_cache->put(*code_hash, analysis);
         }

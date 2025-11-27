@@ -181,6 +181,7 @@ bool ChainConfig::is_prague(BlockNum block_num, BlockTime block_time) const noex
 }
 
 evmc_revision ChainConfig::revision(uint64_t block_num, uint64_t block_time) const noexcept {
+    if (osaka_time && block_time >= osaka_time) return EVMC_OSAKA;
     if (prague_time && block_time >= prague_time) return EVMC_PRAGUE;
     if (cancun_time && block_time >= cancun_time) return EVMC_CANCUN;
     if (shanghai_time && block_time >= shanghai_time) return EVMC_SHANGHAI;
