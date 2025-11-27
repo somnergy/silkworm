@@ -80,6 +80,10 @@ struct ChainConfig {
     std::optional<BlockTime> cancun_time{std::nullopt};
     std::optional<BlockTime> prague_time{std::nullopt};
     std::optional<BlockTime> osaka_time{std::nullopt};
+    std::optional<BlockTime> bpo1_time{std::nullopt};
+    std::optional<BlockTime> bpo2_time{std::nullopt};
+    std::optional<BlockTime> bpo3_time{std::nullopt};
+    std::optional<BlockTime> bpo4_time{std::nullopt};
 
     //! \brief Returns the config of the (pre-Merge) protocol rule set
     protocol::PreMergeRuleSetConfig rule_set_config{protocol::NoPreMergeConfig{}};

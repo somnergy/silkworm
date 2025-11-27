@@ -203,6 +203,18 @@ evmc_revision ChainConfig::revision(uint64_t block_num, uint64_t block_time) con
 }
 
 BlobParams ChainConfig::blob_params(uint64_t block_time) const noexcept {
+    if (bpo4_time && block_time >= bpo4_time) {
+        return {14, 21, 13739630};
+    }
+    if (bpo3_time && block_time >= bpo3_time) {
+        return {21, 32, 20609697};
+    }
+    if (bpo2_time && block_time >= bpo2_time) {
+        return {14, 21, 11684671};
+    }
+    if (bpo1_time && block_time >= bpo1_time) {
+        return {10, 15, 8346193};
+    }
     if (osaka_time && block_time >= osaka_time) {
         return {6, 9, 5007716};
     }
