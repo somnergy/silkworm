@@ -186,7 +186,7 @@ ValidationResult RuleSet::validate_block_header(const BlockHeader& header, const
         if (!header.blob_gas_used || !header.excess_blob_gas || !header.parent_beacon_block_root) {
             return ValidationResult::kMissingField;
         }
-        if (header.excess_blob_gas != calc_excess_blob_gas(*parent, rev)) {
+        if (header.excess_blob_gas != calc_excess_blob_gas(header, *parent, *chain_config_)) {
             return ValidationResult::kWrongExcessBlobGas;
         }
     }
