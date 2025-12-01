@@ -609,7 +609,11 @@ uint64_t StateTransition::run_rlp() {
         }
     }
 
-    auto config{test::kNetworkConfig.find("Prague")->second};
+    // Use Mainnet config.
+    // This can be latter extended to public testnets by providing chain id
+    // and selecting the appropriate config from kKnownChainConfigs.
+    const auto config = kMainnetConfig;
+
     Blockchain blockchain{state, config, genesisBlock};
 
     if (ValidationResult err{blockchain.insert_block(block, false)}; err != ValidationResult::kOk) {
